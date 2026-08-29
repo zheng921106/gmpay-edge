@@ -23,9 +23,6 @@ export function PublicFooter() {
 						<Link className="inline-flex" to="/">
 							<AppTitle description />
 						</Link>
-						<p className="mt-5 text-muted-foreground text-sm leading-6">
-							{m.public_footer_description()}
-						</p>
 						<Link
 							className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-primary text-xs transition-colors hover:bg-primary/15"
 							to="/status"
@@ -51,7 +48,6 @@ export function PublicFooter() {
 							name: brand.name,
 						})}
 					</p>
-					<p>{m.public_footer_platform()}</p>
 				</div>
 			</div>
 		</footer>
