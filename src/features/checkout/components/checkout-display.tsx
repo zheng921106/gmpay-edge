@@ -53,11 +53,14 @@ export function CopyIconButton({
 	return (
 		<Button
 			aria-label={copied ? m.common_copy_success() : m.common_copy()}
-			className={cn("mb-0.5 shrink-0", className)}
+			className={cn(
+				"mb-0.5 shrink-0 rounded-none border border-white/15 bg-white/10 text-[#f5f4ed] hover:bg-white/20 hover:text-[#f5f4ed]",
+				className,
+			)}
 			onClick={handleClick}
 			size="icon-sm"
 			type="button"
-			variant="secondary"
+			variant="outline"
 		>
 			{copied ? (
 				<Check className="text-emerald-600 dark:text-emerald-400" />

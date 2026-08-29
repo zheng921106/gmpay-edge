@@ -75,19 +75,17 @@ export function PaymentDetailsPanel({
 	if (isOkpayPayment || (paymentUrl && !qrValue)) {
 		return (
 			<section className="w-full pb-4">
-				<div className="mb-4 w-full rounded-2xl border bg-card px-5 py-5 text-card-foreground shadow-md">
+				<div className="mb-4 w-full border border-white/15 bg-[#10130f] px-5 py-5 text-[#f5f4ed] shadow-[8px_8px_0_0_rgba(182,255,67,0.12)]">
 					<p className="mb-2 font-semibold text-sm">
 						{m.checkout_redirecting_okpay()}
 					</p>
 					{paymentUrl ? (
-						<p className="break-all text-muted-foreground text-sm">
-							{paymentUrl}
-						</p>
+						<p className="break-all text-[#9da098] text-sm">{paymentUrl}</p>
 					) : null}
 				</div>
 				{paymentUrl ? (
 					<Button
-						className="mb-3 h-12 w-full rounded-xl text-base"
+						className="mb-3 h-12 w-full rounded-none bg-[#b6ff43] text-[#10120e] text-base hover:bg-[#d4ff8a]"
 						onClick={() => {
 							window.open(
 								paymentUrl,
@@ -106,10 +104,12 @@ export function PaymentDetailsPanel({
 	}
 
 	return (
-		<section className="w-full pb-4">
-			<div className="mb-4 w-full overflow-hidden rounded-2xl border bg-card px-5 pt-5 pb-0 text-card-foreground shadow-md">
+		<section aria-label={m.checkout_scan()} className="w-full pb-4">
+			<div className="mb-4 w-full overflow-hidden border border-white/15 bg-[#10130f] px-5 pt-5 pb-0 text-[#f5f4ed] shadow-[8px_8px_0_0_rgba(182,255,67,0.12)]">
 				<div className="mb-3 flex items-center justify-between">
-					<p className="font-semibold text-sm">{m.checkout_scan()}</p>
+					<p className="font-semibold text-sm uppercase tracking-[0.1em]">
+						{m.checkout_scan()}
+					</p>
 					<div className="relative size-10 shrink-0">
 						<svg
 							aria-hidden="true"
@@ -117,7 +117,7 @@ export function PaymentDetailsPanel({
 							viewBox="0 0 48 48"
 						>
 							<circle
-								className="text-border"
+								className="text-white/15"
 								cx="24"
 								cy="24"
 								fill="none"
@@ -142,18 +142,19 @@ export function PaymentDetailsPanel({
 							/>
 						</svg>
 						<div className="absolute inset-0 flex items-center justify-center">
-							<Timer className="size-4 text-muted-foreground" />
+							<Timer className="size-4 text-[#9da098]" />
 						</div>
 					</div>
 				</div>
 				<p
-					className="mb-4 text-center font-bold font-mono text-3xl leading-none"
+					aria-live="polite"
+					className="mb-5 text-center font-bold font-mono text-3xl leading-none"
 					style={{ color: timeColor }}
 				>
 					{formatRemaining(remaining)}
 				</p>
 				<div className="mb-4 flex justify-center">
-					<div className="rounded-xl border bg-white p-3.5 shadow-md">
+					<div className="border-4 border-[#f5f4ed] bg-white p-3 shadow-[6px_6px_0_0_rgba(182,255,67,0.35)]">
 						{qrValue ? (
 							<QRCodeSVG
 								bgColor="#ffffff"
@@ -169,12 +170,12 @@ export function PaymentDetailsPanel({
 						)}
 					</div>
 				</div>
-				<div className="-mx-5 flex w-[calc(100%+2.5rem)] items-start gap-3 border-border/50 border-t px-5 py-3.5">
+				<div className="-mx-5 flex w-[calc(100%+2.5rem)] items-start gap-3 border-white/15 border-t px-5 py-3.5">
 					<div className="min-w-0 flex-1">
-						<p className="mb-0.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+						<p className="mb-0.5 font-semibold text-[#9da098] text-xs uppercase tracking-[0.12em]">
 							{m.checkout_payment_address()}
 						</p>
-						<p className="break-all font-medium text-card-foreground text-sm leading-relaxed">
+						<p className="break-all font-medium text-[#f5f4ed] text-sm leading-relaxed">
 							{order?.receive_address ?? "--"}
 						</p>
 					</div>
@@ -183,7 +184,7 @@ export function PaymentDetailsPanel({
 			</div>
 			{showChangePaymentOption ? (
 				<Button
-					className="mb-3 h-12 w-full rounded-xl text-base"
+					className="mb-3 h-12 w-full rounded-none border-white/25 bg-transparent text-[#f5f4ed] text-base hover:bg-white/10 hover:text-[#f5f4ed]"
 					onClick={onChangePaymentOption}
 					type="button"
 					variant="outline"
@@ -196,17 +197,19 @@ export function PaymentDetailsPanel({
 				<Dialog onOpenChange={setTxHashDialogOpen} open={txHashDialogOpen}>
 					<DialogTrigger asChild>
 						<Button
-							className="mb-3 h-12 w-full rounded-xl text-base"
+							className="mb-3 h-12 w-full rounded-none bg-[#b6ff43] text-[#10120e] text-base hover:bg-[#d4ff8a]"
 							type="button"
 						>
 							<Check />
 							{m.checkout_transferred()}
 						</Button>
 					</DialogTrigger>
-					<DialogContent>
+					<DialogContent className="border-white/15 bg-[#10130f] text-[#f5f4ed] sm:max-w-md">
 						<DialogHeader>
 							<DialogTitle>{m.checkout_tx_hash_title()}</DialogTitle>
-							<DialogDescription>{m.checkout_tx_hash_desc()}</DialogDescription>
+							<DialogDescription className="text-[#9da098]">
+								{m.checkout_tx_hash_desc()}
+							</DialogDescription>
 						</DialogHeader>
 						<form
 							className="space-y-4"
@@ -228,7 +231,7 @@ export function PaymentDetailsPanel({
 								<Input
 									autoComplete="off"
 									autoFocus
-									className="h-11"
+									className="h-11 rounded-none border-white/20 bg-black/20 text-[#f5f4ed] placeholder:text-[#777a72]"
 									disabled={submittingTxHash}
 									id="checkout-tx-hash"
 									onChange={(event) => onTxHashChange(event.target.value)}
@@ -236,12 +239,13 @@ export function PaymentDetailsPanel({
 									value={txHash}
 								/>
 							</div>
-							<p className="text-muted-foreground text-xs leading-relaxed">
+							<p className="text-[#9da098] text-xs leading-relaxed">
 								{m.checkout_tx_hash_hint()}
 							</p>
 							<DialogFooter>
 								<DialogClose asChild>
 									<Button
+										className="rounded-none border-white/25 bg-transparent text-[#f5f4ed] hover:bg-white/10 hover:text-[#f5f4ed]"
 										disabled={submittingTxHash}
 										type="button"
 										variant="outline"
@@ -250,6 +254,7 @@ export function PaymentDetailsPanel({
 									</Button>
 								</DialogClose>
 								<Button
+									className="rounded-none bg-[#b6ff43] text-[#10120e] hover:bg-[#d4ff8a]"
 									disabled={submittingTxHash || !txHash.trim()}
 									type="submit"
 								>
@@ -273,8 +278,8 @@ export function PaymentDetailsPanel({
 					transactionHash={txHash}
 				/>
 			) : null}
-			<div className="flex items-center justify-center gap-1.5 py-1 text-muted-foreground">
-				<LoaderCircle className="size-3.5 animate-spin" />
+			<div className="flex items-center justify-center gap-1.5 py-1 text-[#9da098]">
+				<LoaderCircle className="size-3.5 animate-spin text-[#b6ff43]" />
 				<span className="text-xs">{m.checkout_checking()}</span>
 			</div>
 		</section>

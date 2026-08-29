@@ -35,7 +35,7 @@ export function PaymentReviewDialog({
 		<Dialog onOpenChange={setOpen} open={open}>
 			<DialogTrigger asChild>
 				<Button
-					className="mb-3 h-12 w-full rounded-xl text-base"
+					className="mb-3 h-12 w-full rounded-none border-white/25 bg-transparent text-[#f5f4ed] text-base hover:bg-white/10 hover:text-[#f5f4ed]"
 					disabled={disabled}
 					type="button"
 					variant="outline"
@@ -44,10 +44,10 @@ export function PaymentReviewDialog({
 					{disabled ? m.checkout_review_pending() : m.checkout_review_title()}
 				</Button>
 			</DialogTrigger>
-			<DialogContent>
+			<DialogContent className="border-white/15 bg-[#10130f] text-[#f5f4ed] sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>{m.checkout_review_title()}</DialogTitle>
-					<DialogDescription>
+					<DialogDescription className="text-[#9da098]">
 						{m.checkout_review_description()}
 					</DialogDescription>
 				</DialogHeader>
@@ -86,7 +86,7 @@ export function PaymentReviewDialog({
 							{m.checkout_review_details_label()}
 						</label>
 						<Textarea
-							className="min-h-24"
+							className="min-h-24 rounded-none border-white/20 bg-black/20 text-[#f5f4ed] placeholder:text-[#777a72]"
 							disabled={submitting}
 							id="review-description"
 							maxLength={1000}
@@ -102,6 +102,7 @@ export function PaymentReviewDialog({
 						</label>
 						<Input
 							accept="image/jpeg,image/png,image/webp"
+							className="rounded-none border-white/20 bg-black/20 text-[#f5f4ed]"
 							disabled={submitting}
 							id="review-evidence"
 							onChange={(event) =>
@@ -110,17 +111,26 @@ export function PaymentReviewDialog({
 							required
 							type="file"
 						/>
-						<p className="text-muted-foreground text-xs">
+						<p className="text-[#9da098] text-xs">
 							{m.checkout_review_evidence_hint()}
 						</p>
 					</div>
 					<DialogFooter>
 						<DialogClose asChild>
-							<Button disabled={submitting} type="button" variant="outline">
+							<Button
+								className="rounded-none border-white/25 bg-transparent text-[#f5f4ed] hover:bg-white/10 hover:text-[#f5f4ed]"
+								disabled={submitting}
+								type="button"
+								variant="outline"
+							>
 								{m.common_cancel()}
 							</Button>
 						</DialogClose>
-						<Button disabled={submitting} type="submit">
+						<Button
+							className="rounded-none bg-[#b6ff43] text-[#10120e] hover:bg-[#d4ff8a]"
+							disabled={submitting}
+							type="submit"
+						>
 							{submitting ? (
 								<LoaderCircle className="animate-spin" />
 							) : (

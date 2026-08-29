@@ -77,7 +77,7 @@ export function SelectPaymentOptionPanel({
 				{onBack ? (
 					<Button
 						aria-label={m.checkout_back()}
-						className="size-8 rounded-full"
+						className="size-8 rounded-none border border-white/15 text-[#f5f4ed] hover:bg-white/10 hover:text-[#f5f4ed]"
 						onClick={onBack}
 						size="icon-sm"
 						variant="ghost"
@@ -85,18 +85,18 @@ export function SelectPaymentOptionPanel({
 						<ArrowLeft />
 					</Button>
 				) : null}
-				<p className="font-semibold text-base">
+				<p className="font-semibold text-base text-[#f5f4ed]">
 					{m.checkout_select_payment_method()}
 				</p>
 			</div>
 			{loading ? (
-				<p className="py-8 text-center text-muted-foreground text-sm">
+				<p className="border border-white/15 bg-[#10130f] py-8 text-center text-[#9da098] text-sm">
 					{m.common_loading()}
 				</p>
 			) : options.length === 0 ? (
-				<div className="rounded-xl border bg-muted/30 px-4 py-5 text-center">
+				<div className="border border-white/15 bg-[#10130f] px-4 py-5 text-center text-[#f5f4ed]">
 					<p className="font-medium">{m.checkout_no_payment_options()}</p>
-					<p className="mt-1 text-muted-foreground text-sm">
+					<p className="mt-1 text-[#9da098] text-sm">
 						{unavailableReason === "rate_unavailable"
 							? m.checkout_payment_rate_unavailable_hint()
 							: m.checkout_no_payment_options_hint()}
@@ -108,7 +108,7 @@ export function SelectPaymentOptionPanel({
 						<div className="mb-4 grid grid-cols-3 gap-2">
 							{kinds.map((value) => (
 								<Button
-									className="h-auto min-h-16 flex-col gap-1 rounded-xl px-2 py-2"
+									className="h-auto min-h-16 flex-col gap-1 rounded-none px-2 py-2"
 									key={value}
 									onClick={() => {
 										setKind(value);
@@ -125,7 +125,7 @@ export function SelectPaymentOptionPanel({
 					) : null}
 					<div className="mb-4 grid grid-cols-2 gap-2">
 						<div className="min-w-0">
-							<p className="mb-1.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+							<p className="mb-1.5 font-semibold text-[#9da098] text-xs uppercase tracking-[0.12em]">
 								{kindLabel(kind)}
 							</p>
 							<Select
@@ -136,7 +136,7 @@ export function SelectPaymentOptionPanel({
 								}}
 								value={receivingMethodId}
 							>
-								<SelectTrigger className="h-12.5 w-full rounded-xl bg-card">
+								<SelectTrigger className="h-12.5 w-full rounded-none border-white/20 bg-[#10130f] text-[#f5f4ed]">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent position="popper">
@@ -152,7 +152,7 @@ export function SelectPaymentOptionPanel({
 							</Select>
 						</div>
 						<div className="min-w-0">
-							<p className="mb-1.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+							<p className="mb-1.5 font-semibold text-[#9da098] text-xs uppercase tracking-[0.12em]">
 								{m.common_currency()}
 							</p>
 							<Select
@@ -160,7 +160,7 @@ export function SelectPaymentOptionPanel({
 								onValueChange={setPaymentMethodId}
 								value={paymentMethodId}
 							>
-								<SelectTrigger className="h-12.5 w-full rounded-xl bg-card">
+								<SelectTrigger className="h-12.5 w-full rounded-none border-white/20 bg-[#10130f] text-[#f5f4ed]">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent position="popper">
@@ -181,7 +181,7 @@ export function SelectPaymentOptionPanel({
 						</div>
 					</div>
 					<Button
-						className="h-12 w-full rounded-xl text-base"
+						className="h-12 w-full rounded-none bg-[#b6ff43] text-[#10120e] text-base hover:bg-[#d4ff8a]"
 						disabled={busy || !selected}
 						onClick={() => selected && onConfirm(selected)}
 					>

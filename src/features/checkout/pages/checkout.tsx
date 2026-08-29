@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CodeXml, MessageCircle } from "lucide-react";
+import { CodeXml, MessageCircle, RadioTower } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -67,6 +67,7 @@ export function CheckoutPage({
 		}
 	}, [orderId]);
 	const pollingEnabled = Boolean(order && !isTerminal(statusDetail));
+	const isAwaitingPayment = pollingEnabled;
 	const { pollAfterCurrent, pollNow } = useVisiblePolling(
 		refreshOrder,
 		5_000,
@@ -312,11 +313,12 @@ export function CheckoutPage({
 	}
 	return (
 		<main
-			className="min-h-svh bg-background text-foreground"
+			className="relative isolate min-h-svh overflow-hidden bg-[#0b0d0b] text-[#f5f4ed]"
 			style={backgroundStyle}
 		>
-			<div className="mx-auto flex min-h-svh w-full max-w-sm flex-col px-5">
-				<header className="flex items-center justify-between pt-8 pb-6">
+			<CheckoutGrid />
+			<div className="relative mx-auto flex min-h-svh w-full max-w-[34rem] flex-col px-4 sm:px-5">
+				<header className="flex items-center justify-between border-white/15 border-b py-5">
 					<Link to="/" className="flex min-w-0 items-center gap-2">
 						<img
 							alt={brand.name}
@@ -325,7 +327,7 @@ export function CheckoutPage({
 							src={brand.logoUrl}
 							width={32}
 						/>
-						<span className="truncate font-semibold text-lg tracking-tight">
+						<span className="truncate font-semibold text-sm uppercase tracking-[0.12em]">
 							{brand.name}
 						</span>
 					</Link>
@@ -334,11 +336,19 @@ export function CheckoutPage({
 						<ThemeSwitch />
 					</div>
 				</header>
-				<div className="flex-1">{content}</div>
+				<div className="flex-1 py-7 sm:py-9">
+					{isAwaitingPayment ? (
+						<div className="mb-4 flex items-center gap-2 text-[#b6ff43] text-xs uppercase tracking-[0.18em]">
+							<RadioTower className="size-3.5" />
+							<span>{m.checkout_checking()}</span>
+						</div>
+					) : null}
+					{content}
+				</div>
 				{brand.supportUrl ? (
 					<a
 						aria-label={m.checkout_customer_service()}
-						className="fixed right-5 bottom-5 z-20 flex h-12 items-center gap-2 rounded-full bg-primary px-4 font-medium text-primary-foreground text-sm shadow-lg transition hover:opacity-90"
+						className="fixed right-5 bottom-5 z-20 flex h-12 items-center gap-2 bg-[#b6ff43] px-4 font-medium text-[#10120e] text-sm shadow-[6px_6px_0_0_rgba(255,255,255,0.16)] transition-colors hover:bg-[#d4ff8a]"
 						href={brand.supportUrl}
 						rel="noopener noreferrer"
 						target="_blank"
@@ -347,14 +357,14 @@ export function CheckoutPage({
 						<span>{m.checkout_customer_service()}</span>
 					</a>
 				) : null}
-				<footer className="flex flex-wrap items-center justify-center gap-2.5 py-6 text-muted-foreground text-xs">
+				<footer className="flex flex-wrap items-center justify-center gap-2.5 border-white/15 border-t py-5 text-[#9da098] text-xs">
 					<span className="flex items-center gap-1.5">
 						{m.checkout_powered_by()}
-						<strong className="text-foreground">{brand.name}</strong>
+						<strong className="text-[#f5f4ed]">{brand.name}</strong>
 					</span>
 					<span className="opacity-30">|</span>
 					<a
-						className="flex items-center gap-1 font-semibold text-foreground hover:opacity-70"
+						className="flex items-center gap-1 font-semibold text-[#f5f4ed] hover:text-[#b6ff43]"
 						href="https://github.com/GMwalletApp/gmpay-edge"
 						rel="noopener noreferrer"
 						target="_blank"
@@ -365,6 +375,21 @@ export function CheckoutPage({
 				</footer>
 			</div>
 		</main>
+	);
+}
+
+function CheckoutGrid() {
+	return (
+		<div
+			aria-hidden
+			className="pointer-events-none absolute inset-0 overflow-hidden"
+		>
+			<div className="absolute inset-x-0 top-20 h-px bg-white/[0.06]" />
+			<div className="absolute inset-y-0 left-[calc(50%_-_17rem)] hidden w-px bg-white/[0.045] lg:block" />
+			<div className="absolute inset-y-0 right-[calc(50%_-_17rem)] hidden w-px bg-white/[0.045] lg:block" />
+			<div className="absolute top-[38%] left-0 h-px w-full bg-white/[0.035]" />
+			<div className="absolute top-[72%] left-0 h-px w-full bg-white/[0.035]" />
+		</div>
 	);
 }
 
