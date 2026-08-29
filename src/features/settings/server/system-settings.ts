@@ -80,7 +80,7 @@ const definitions = {
 export type SettingKey = keyof typeof definitions;
 
 const defaults: Record<SettingKey, SettingValue> = {
-	"site.name": "GMPay Edge",
+	"site.name": "TOGETHER9",
 	"site.default_locale": "en-US",
 	"site.logo_url": "",
 	"site.support_url": "",

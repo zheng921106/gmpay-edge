@@ -14,6 +14,7 @@ import {
 	loadSiteBrand,
 	loadSiteBrandOrDefault,
 } from "#/features/settings/server/site-brand";
+import { defaultSiteBrand } from "#/features/settings/site-brand";
 import {
 	createDatastoreCounters,
 	instrumentD1,
@@ -156,15 +157,9 @@ describe("checkout brand settings", () => {
 		await expect(loadSiteBrand(unavailable, cache)).rejects.toThrow(
 			"D1 unavailable",
 		);
-		await expect(loadSiteBrandOrDefault(unavailable, cache)).resolves.toEqual({
-			name: "GMPay Edge",
-			logoUrl: "/favicon.png",
-			title: "GMPay Edge",
-			supportUrl: "",
-			backgroundColor: "",
-			backgroundImageUrl: "",
-			defaultLocale: "en-US",
-		});
+		await expect(loadSiteBrandOrDefault(unavailable, cache)).resolves.toEqual(
+			defaultSiteBrand,
+		);
 	});
 
 	it("invalidates the cached brand after a setting changes", async () => {
@@ -196,15 +191,7 @@ describe("checkout brand settings", () => {
 	afterAll(async () => miniflare.dispose());
 
 	it("returns safe defaults before customization", async () => {
-		await expect(loadSiteBrand(database)).resolves.toEqual({
-			name: "GMPay Edge",
-			logoUrl: "/favicon.png",
-			title: "GMPay Edge",
-			supportUrl: "",
-			backgroundColor: "",
-			backgroundImageUrl: "",
-			defaultLocale: "en-US",
-		});
+		await expect(loadSiteBrand(database)).resolves.toEqual(defaultSiteBrand);
 	});
 
 	it("keeps the install shell available before system settings exist", async () => {
@@ -215,15 +202,9 @@ describe("checkout brand settings", () => {
 		});
 		try {
 			const emptyDatabase = await empty.getD1Database("DB");
-			await expect(loadSiteBrandOrDefault(emptyDatabase)).resolves.toEqual({
-				name: "GMPay Edge",
-				logoUrl: "/favicon.png",
-				title: "GMPay Edge",
-				supportUrl: "",
-				backgroundColor: "",
-				backgroundImageUrl: "",
-				defaultLocale: "en-US",
-			});
+			await expect(loadSiteBrandOrDefault(emptyDatabase)).resolves.toEqual(
+				defaultSiteBrand,
+			);
 		} finally {
 			await empty.dispose();
 		}

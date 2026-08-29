@@ -13,6 +13,7 @@ import { ThemeProvider } from "#/context/theme-provider";
 import { GeneralError } from "#/features/errors/general-error";
 import { NotFoundError } from "#/features/errors/not-found-error";
 import { getSiteBrandFn } from "#/features/settings/server/site-brand-entry";
+import { defaultSiteBrand } from "#/features/settings/site-brand";
 import { m } from "#/paraglide/messages";
 import { getLocale } from "#/paraglide/runtime";
 import appCss from "../styles/global.css?url";
@@ -50,7 +51,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 	staleTime: 5 * 60_000,
 	loader: () => getSiteBrandFn(),
 	head: ({ loaderData }) => {
-		const title = `${loaderData?.name ?? "GMPay Edge"} – ${m.app_title_description()}`;
+		const title = `${loaderData?.name ?? defaultSiteBrand.name} – ${m.app_title_description()}`;
 		const logoUrl = loaderData?.logoUrl ?? "/favicon.png";
 		return {
 			meta: [

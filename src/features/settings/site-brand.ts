@@ -11,9 +11,9 @@ export type SiteBrand = {
 };
 
 export const defaultSiteBrand: SiteBrand = {
-	name: "GMPay Edge",
+	name: "TOGETHER9",
 	logoUrl: "/favicon.png",
-	title: "GMPay Edge",
+	title: "TOGETHER9",
 	supportUrl: "",
 	backgroundColor: "",
 	backgroundImageUrl: "",
