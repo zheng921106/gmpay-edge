@@ -1032,7 +1032,7 @@
 	"payment_dashboard_operations_description": "Current availability of payment and delivery services",
 	"payment_dashboard_connections": "Access connections",
 	"payment_dashboard_webhooks": "Webhook deliveries",
-	"docs_api_reference_title": "GMPay Edge API Reference",
+	"docs_api_reference_title": "TOGETHER9 API Reference",
 	"docs_api_reference_description": "Merchant REST API and webhook protocol",
 	"docs_api_reference_load_failed": "The API reference could not be loaded. Please try again later.",
 	"webhooks_endpoint_alchemy": "Alchemy address activity",

@@ -1032,7 +1032,7 @@
   "payment_dashboard_webhooks": "웹훅 전달",
   "orders_receiving_information": "수금 정보",
   "orders_receiving_type": "수금 유형",
-  "docs_api_reference_title": "GMPay Edge API 참조",
+  "docs_api_reference_title": "TOGETHER9 API 참조",
   "docs_api_reference_description": "가맹점 REST API 및 Webhook 프로토콜",
   "docs_api_reference_load_failed": "API 참조를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.",
   "webhooks_endpoint_alchemy": "Alchemy 주소 활동",

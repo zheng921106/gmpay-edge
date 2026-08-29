@@ -1032,7 +1032,7 @@
 	"payment_dashboard_operations_description": "支付与通知服务当前的可用情况",
 	"payment_dashboard_connections": "接入配置",
 	"payment_dashboard_webhooks": "Webhook 投递",
-	"docs_api_reference_title": "GMPay Edge API 参考",
+	"docs_api_reference_title": "TOGETHER9 API 参考",
 	"docs_api_reference_description": "商户 REST API 与 Webhook 协议",
 	"docs_api_reference_load_failed": "无法加载 API 参考，请稍后重试。",
 	"webhooks_endpoint_alchemy": "Alchemy 地址活动",

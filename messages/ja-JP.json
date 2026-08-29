@@ -1032,7 +1032,7 @@
   "payment_dashboard_webhooks": "Webhook配信",
   "orders_receiving_information": "受取情報",
   "orders_receiving_type": "受取タイプ",
-  "docs_api_reference_title": "GMPay Edge API リファレンス",
+  "docs_api_reference_title": "TOGETHER9 API リファレンス",
   "docs_api_reference_description": "加盟店 REST API と Webhook プロトコル",
   "docs_api_reference_load_failed": "API リファレンスを読み込めませんでした。しばらくしてからもう一度お試しください。",
   "webhooks_endpoint_alchemy": "Alchemy アドレスアクティビティ",

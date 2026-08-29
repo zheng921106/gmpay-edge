@@ -3,7 +3,23 @@ import { relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
-describe("GMPay and EPay OpenAPI contract", () => {
+describe("TOGETHER9 and EPay OpenAPI contract", () => {
+	it("brands the documented merchant protocol as TOGETHER9 without changing its compatible URL", async () => {
+		const document = await openApi();
+		const create = document.paths["/payments/gmpay/v1/order/create-transaction"]
+			?.post as Operation;
+
+		expect(document.info.title).toBe("TOGETHER9 Merchant API");
+		expect(create.summary).toBe("Create a TOGETHER9 transaction");
+		expect(document.components.schemas).toHaveProperty(
+			"Together9CreateRequest",
+		);
+		expect(document.components.schemas).not.toHaveProperty(
+			"GmpayCreateRequest",
+		);
+		expect(JSON.stringify(document)).not.toMatch(/GMPay|Gmpay/);
+	});
+
 	it("declares exactly the implemented merchant entry routes", async () => {
 		const document = await openApi();
 		expect(Object.keys(document.paths).sort()).toEqual(
@@ -11,7 +27,7 @@ describe("GMPay and EPay OpenAPI contract", () => {
 		);
 	});
 
-	it("documents JSON/form GMPay input and GET/form EPay compatibility", async () => {
+	it("documents JSON/form TOGETHER9 input and GET/form EPay compatibility", async () => {
 		const document = await openApi();
 		const gmpay = document.paths["/payments/gmpay/v1/order/create-transaction"]
 			?.post as Operation;
@@ -42,14 +58,14 @@ describe("GMPay and EPay OpenAPI contract", () => {
 		expect((epay?.get as Operation).responses["200"]).toMatchObject({
 			content: {
 				"application/json": {
-					schema: { $ref: "#/components/schemas/GmpayCreateResponse" },
+					schema: { $ref: "#/components/schemas/Together9CreateResponse" },
 				},
 			},
 		});
 		expect((epay?.post as Operation).responses["200"]).toMatchObject({
 			content: {
 				"application/json": {
-					schema: { $ref: "#/components/schemas/GmpayCreateResponse" },
+					schema: { $ref: "#/components/schemas/Together9CreateResponse" },
 				},
 			},
 		});
@@ -80,10 +96,10 @@ describe("GMPay and EPay OpenAPI contract", () => {
 		const document = await openApi();
 		const schemas = document.components.schemas;
 		const orderStatus = requiredSchema(schemas, "OrderStatus");
-		const gmpayStatus = requiredSchema(schemas, "GmpayStatus");
-		const createRequest = requiredSchema(schemas, "GmpayCreateRequest");
-		const createData = requiredSchema(schemas, "GmpayCreateData");
-		const notification = requiredSchema(schemas, "GmpayNotification");
+		const together9Status = requiredSchema(schemas, "Together9Status");
+		const createRequest = requiredSchema(schemas, "Together9CreateRequest");
+		const createData = requiredSchema(schemas, "Together9CreateData");
+		const notification = requiredSchema(schemas, "Together9Notification");
 		expect(orderStatus.enum).toEqual([
 			"pending",
 			"confirming",
@@ -101,9 +117,9 @@ describe("GMPay and EPay OpenAPI contract", () => {
 			expect.objectContaining({ type: "string" }),
 			expect.objectContaining({ type: "number" }),
 		]);
-		expect(gmpayStatus.enum).toEqual([1, 2, 3, 4]);
+		expect(together9Status.enum).toEqual([1, 2, 3, 4]);
 		expect(createData.properties.status).toEqual({
-			$ref: "#/components/schemas/GmpayStatus",
+			$ref: "#/components/schemas/Together9Status",
 		});
 		expect(createData.properties.status_detail).toEqual({
 			$ref: "#/components/schemas/OrderStatus",
@@ -209,6 +225,7 @@ async function routeFiles(directory: string): Promise<string[]> {
 type Operation = {
 	requestBody: { content: Record<string, unknown> };
 	responses: Record<string, unknown>;
+	summary?: string;
 	parameters?: Array<{ name: string }>;
 	callbacks?: Record<string, unknown>;
 };
@@ -219,6 +236,7 @@ async function openApi() {
 		"utf8",
 	);
 	return parse(source) as {
+		info: { title: string };
 		paths: Record<string, Record<string, unknown>>;
 		components: {
 			schemas: Record<

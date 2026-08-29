@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
-  title: GMPay Edge Merchant API
+  title: TOGETHER9 Merchant API
   version: 1.0.0
   description: >-
-    GMPay Edge is a single-deployment, single-tenant gateway. GMPay is the
+    TOGETHER9 is a single-deployment, single-tenant gateway. TOGETHER9 is the
     primary merchant protocol, and EPay is a compatibility adapter over the
     same credential, order service, checkout, payment processor, and Webhook
     outbox. Internal operations use /admin and are outside this merchant API.
@@ -12,22 +12,22 @@ servers:
 paths:
   /payments/gmpay/v1/order/create-transaction:
     post:
-      operationId: createGmpayTransaction
-      summary: Create a GMPay transaction
+      operationId: createTogether9Transaction
+      summary: Create a TOGETHER9 transaction
       description: Accepts JSON or form data. Exclude signature and empty values, sort field names in ASCII order, join key=value pairs with &, and calculate lowercase HMAC-SHA256 using the API Secret as the HMAC key.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/GmpayCreateRequest" }
+            schema: { $ref: "#/components/schemas/Together9CreateRequest" }
           application/x-www-form-urlencoded:
-            schema: { $ref: "#/components/schemas/GmpayCreateRequest" }
+            schema: { $ref: "#/components/schemas/Together9CreateRequest" }
       responses:
         "200":
           description: Transaction created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/GmpayCreateResponse" }
+              schema: { $ref: "#/components/schemas/Together9CreateResponse" }
         "400": { $ref: "#/components/responses/GatewayError" }
         "401": { $ref: "#/components/responses/GatewayError" }
         "429": { $ref: "#/components/responses/GatewayError" }
@@ -38,13 +38,13 @@ paths:
         orderNotification:
           '{$request.body#/notify_url}':
             post:
-              summary: GMPay order notification
+              summary: TOGETHER9 order notification
               description: The signature is lowercase HMAC-SHA256 over the sorted non-empty callback fields using the same API Secret as the HMAC key. Return plain text ok with HTTP 200.
               requestBody:
                 required: true
                 content:
                   application/json:
-                    schema: { $ref: "#/components/schemas/GmpayNotification" }
+                    schema: { $ref: "#/components/schemas/Together9Notification" }
               responses:
                 "200":
                   description: Plain text ok acknowledgement
@@ -53,8 +53,8 @@ paths:
                       schema: { type: string, const: ok }
   /payments/gmpay/v1/order/query:
     get:
-      operationId: queryGmpayTransaction
-      summary: Query a GMPay transaction
+      operationId: queryTogether9Transaction
+      summary: Query a TOGETHER9 transaction
       description: Query by exactly one trade_id or order_id. Sign all non-empty query fields except signature using the same lowercase HMAC-SHA256 contract as order creation.
       parameters:
         - { name: pid, in: query, required: true, schema: { type: string } }
@@ -66,7 +66,7 @@ paths:
           description: Transaction status and immutable payment snapshot
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/GmpayCreateResponse" }
+              schema: { $ref: "#/components/schemas/Together9CreateResponse" }
         "400": { $ref: "#/components/responses/GatewayError" }
         "401": { $ref: "#/components/responses/GatewayError" }
         "404": { $ref: "#/components/responses/GatewayError" }
@@ -94,7 +94,7 @@ paths:
           description: Created; open data.payment_url to enter the unified checkout
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/GmpayCreateResponse" }
+              schema: { $ref: "#/components/schemas/Together9CreateResponse" }
         "400": { $ref: "#/components/responses/GatewayError" }
         "401": { $ref: "#/components/responses/GatewayError" }
         "429": { $ref: "#/components/responses/GatewayError" }
@@ -114,7 +114,7 @@ paths:
           description: Created; open data.payment_url to enter the unified checkout
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/GmpayCreateResponse" }
+              schema: { $ref: "#/components/schemas/Together9CreateResponse" }
         "400": { $ref: "#/components/responses/GatewayError" }
         "401": { $ref: "#/components/responses/GatewayError" }
         "429": { $ref: "#/components/responses/GatewayError" }
@@ -222,11 +222,11 @@ components:
     OrderStatus:
       type: string
       enum: [pending, confirming, partially_paid, paid, overpaid, expired, cancelled, failed, refunded]
-    GmpayStatus:
+    Together9Status:
       type: integer
       enum: [1, 2, 3, 4]
       description: 1 waiting for payment, 2 paid, 3 closed, 4 waiting for payment-method selection.
-    GmpayCreateRequest:
+    Together9CreateRequest:
       type: object
       required: [pid, order_id, currency, amount, notify_url, signature]
       properties:
@@ -250,7 +250,7 @@ components:
         amount: "12.50"
         notify_url: https://merchant.example/notify
         signature: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-    GmpayCreateData:
+    Together9CreateData:
       type: object
       required: [trade_id, order_id, amount, currency, actual_amount, receive_address, token, network, status, status_detail, expiration_time, payment_url]
       properties:
@@ -262,17 +262,17 @@ components:
         receive_address: { type: string }
         token: { type: string }
         network: { type: string }
-        status: { $ref: "#/components/schemas/GmpayStatus" }
+        status: { $ref: "#/components/schemas/Together9Status" }
         status_detail: { $ref: "#/components/schemas/OrderStatus" }
         expiration_time: { type: integer }
         payment_url: { type: string, format: uri }
-    GmpayCreateResponse:
+    Together9CreateResponse:
       allOf:
         - { $ref: "#/components/schemas/GatewayEnvelope" }
         - type: object
           properties:
-            data: { $ref: "#/components/schemas/GmpayCreateData" }
-    GmpayNotification:
+            data: { $ref: "#/components/schemas/Together9CreateData" }
+    Together9Notification:
       type: object
       required: [pid, trade_id, order_id, amount, actual_amount, receive_address, token, block_transaction_id, status, signature]
       properties:
