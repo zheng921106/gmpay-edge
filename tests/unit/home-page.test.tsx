@@ -73,6 +73,36 @@ describe("home page", () => {
 			"View integration",
 		);
 	});
+
+	it("uses theme tokens for homepage surfaces", async () => {
+		const rootRoute = createRootRoute({ component: Root });
+		const indexRoute = createRoute({
+			getParentRoute: () => rootRoute,
+			path: "/",
+			component: Home,
+		});
+		const router = createRouter({
+			history: createMemoryHistory({ initialEntries: ["/"] }),
+			routeTree: rootRoute.addChildren([indexRoute]),
+		});
+
+		await router.load();
+		container = document.createElement("div");
+		document.body.appendChild(container);
+		vi.stubGlobal("scrollTo", () => undefined);
+		const mountedRoot = createRoot(container);
+		root = mountedRoot;
+		await act(async () =>
+			mountedRoot.render(<RouterProvider router={router} />),
+		);
+
+		const homeSurface = container.firstElementChild;
+		expect(homeSurface?.className).toContain("bg-background");
+		expect(homeSurface?.className).toContain("text-foreground");
+		expect(container.querySelector("section")?.className).toContain(
+			"bg-background",
+		);
+	});
 });
 
 function Root() {
