@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { requireMerchantAccess } from "#/features/access/server/merchant-access";
 import { requireAdmin } from "#/features/access/server/require-admin";
 import {
 	type SystemPermission,
@@ -200,101 +201,134 @@ export const listAdminOrdersFn = createServerFn({ method: "GET" })
 	.validator((input) => adminOrdersListSchema.parse(input))
 	.handler(async ({ data }) => {
 		const db = await adminDb(systemPermission("orders", "read"));
-		const search = data.search ? `%${data.search}%` : null;
-		const countClauses = [
-			...(search ? ["(o.external_order_id LIKE ? OR o.id LIKE ?)"] : []),
-			...(data.beforeCreatedAt ? ["o.created_at <= ?"] : []),
-		];
-		const countWhere = countClauses.length
-			? `WHERE ${countClauses.join(" AND ")}`
-			: "";
-		const countBindings = [
-			...(search ? [search, search] : []),
-			...(data.beforeCreatedAt ? [data.beforeCreatedAt] : []),
-		];
-		const rowClauses = [
-			...countClauses,
-			...(data.cursor
-				? ["(o.created_at < ? OR (o.created_at = ? AND o.id < ?))"]
-				: []),
-		];
-		const rowWhere = rowClauses.length
-			? `WHERE ${rowClauses.join(" AND ")}`
-			: "";
-		const rowBindings = [
-			...countBindings,
-			...(data.cursor
-				? [data.cursor.createdAt, data.cursor.createdAt, data.cursor.id]
-				: []),
-		];
-		const offset = data.cursor ? 0 : data.pageIndex * data.pageSize;
-		const [countResult, rowsResult] = await db.batch([
-			db
-				.prepare(`SELECT COUNT(*) AS total FROM orders o ${countWhere}`)
-				.bind(...countBindings),
-			db
-				.prepare(
-					`SELECT o.id, o.external_order_id, o.status, o.amount_minor, o.currency,
+		return listOrders(db, data);
+	});
+
+export const listMerchantOrdersFn = createServerFn({ method: "GET" })
+	.validator((input) => adminOrdersListSchema.parse(input))
+	.handler(async ({ data }) => {
+		const request = getRequest();
+		const access = await requireMerchantAccess(request, {
+			module: "merchant",
+			permissionMask: 1,
+		});
+		const db = getCloudflareEnv(request).DB;
+		if (!db) throw new Error("D1 binding DB is unavailable");
+		return listMerchantOrders(db, data, access.context);
+	});
+
+export async function listMerchantOrders(
+	db: D1Database,
+	data: z.infer<typeof adminOrdersListSchema>,
+	scope: { merchantId: string; environmentId: string },
+) {
+	return listOrders(db, data, scope);
+}
+
+async function listOrders(
+	db: D1Database,
+	data: z.infer<typeof adminOrdersListSchema>,
+	scope?: { merchantId: string; environmentId: string },
+) {
+	const search = data.search ? `%${data.search}%` : null;
+	const scopeClauses = scope
+		? ["o.merchant_id = ?", "o.environment_id = ?"]
+		: [];
+	const scopeBindings = scope ? [scope.merchantId, scope.environmentId] : [];
+	const countClauses = [
+		...scopeClauses,
+		...(search ? ["(o.external_order_id LIKE ? OR o.id LIKE ?)"] : []),
+		...(data.beforeCreatedAt ? ["o.created_at <= ?"] : []),
+	];
+	const countWhere = countClauses.length
+		? `WHERE ${countClauses.join(" AND ")}`
+		: "";
+	const countBindings = [
+		...scopeBindings,
+		...(search ? [search, search] : []),
+		...(data.beforeCreatedAt ? [data.beforeCreatedAt] : []),
+	];
+	const rowClauses = [
+		...countClauses,
+		...(data.cursor
+			? ["(o.created_at < ? OR (o.created_at = ? AND o.id < ?))"]
+			: []),
+	];
+	const rowWhere = rowClauses.length ? `WHERE ${rowClauses.join(" AND ")}` : "";
+	const rowBindings = [
+		...countBindings,
+		...(data.cursor
+			? [data.cursor.createdAt, data.cursor.createdAt, data.cursor.id]
+			: []),
+	];
+	const offset = data.cursor ? 0 : data.pageIndex * data.pageSize;
+	const [countResult, rowsResult] = await db.batch([
+		db
+			.prepare(`SELECT COUNT(*) AS total FROM orders o ${countWhere}`)
+			.bind(...countBindings),
+		db
+			.prepare(
+				`SELECT o.id, o.external_order_id, o.status, o.amount_minor, o.currency,
 		 o.currency_decimals, o.received_amount_units, o.expires_at, o.paid_at,
-			 o.created_at, o.notify_url, COALESCE(ops.asset_code, a.code, '') AS asset_code,
-			 ops.expected_amount_units,
-			 COALESCE(ops.rail_code, a.rail_code, '') AS network,
-			 COALESCE(pr.name, ops.rail_code, a.rail_code, '') AS network_name,
-			 COALESCE(pr.kind, '') AS rail_kind,
+		 o.created_at, o.notify_url, COALESCE(ops.asset_code, a.code, '') AS asset_code,
+		 ops.expected_amount_units,
+		 COALESCE(ops.rail_code, a.rail_code, '') AS network,
+		 COALESCE(pr.name, ops.rail_code, a.rail_code, '') AS network_name,
+		 COALESCE(pr.kind, '') AS rail_kind,
 		 COALESCE(ops.decimals, a.decimals, 0) AS decimals,
 		 ops.target_value AS address,
 		 ops.adapter,
-			 COALESCE((SELECT MAX(op.confirmations) FROM order_payments op
-				WHERE op.order_id = o.id), 0) AS confirmations,
-			 COALESCE(ops.required_confirmations, 1) AS required_confirmations
+		 COALESCE((SELECT MAX(op.confirmations) FROM order_payments op
+			WHERE op.order_id = o.id), 0) AS confirmations,
+		 COALESCE(ops.required_confirmations, 1) AS required_confirmations
 		 FROM orders o
 		 LEFT JOIN payment_assets a ON a.id = o.payment_asset_id
 		 LEFT JOIN order_payment_snapshots ops ON ops.order_id = o.id
 		 LEFT JOIN payment_rails pr ON pr.code = COALESCE(ops.rail_code, a.rail_code)
-			 ${rowWhere}
-			 ORDER BY o.created_at DESC, o.id DESC LIMIT ? OFFSET ?`,
-				)
-				.bind(...rowBindings, data.pageSize, offset),
-		]);
-		const count = countResult?.results?.[0] as { total: number } | undefined;
-		const rows = rowsResult as D1Result<AdminOrderRow>;
-		const items = rows.results.map((row) => ({
-			id: row.id,
-			externalOrderId: row.external_order_id,
-			status: row.status,
-			amount: minorToDecimal(row.amount_minor, row.currency_decimals),
-			currency: row.currency,
-			paymentAmount:
-				row.expected_amount_units !== null
-					? unitsToDecimal(BigInt(row.expected_amount_units), row.decimals)
-					: "",
-			receivedAmountUnits: row.received_amount_units,
-			assetCode: row.asset_code,
-			network: row.network,
-			networkName: row.network_name,
-			railKind: row.rail_kind,
-			decimals: row.decimals,
-			address: row.address,
-			adapter: row.adapter,
-			confirmations: row.confirmations,
-			requiredConfirmations: row.required_confirmations,
-			expiresAt: new Date(row.expires_at).toISOString(),
-			paidAt: row.paid_at ? new Date(row.paid_at).toISOString() : null,
-			createdAt: new Date(row.created_at).toISOString(),
-			notifyUrl: row.notify_url,
-		}));
-		const last = rows.results.at(-1);
-		return {
-			items,
-			total: count?.total ?? 0,
-			pageIndex: data.pageIndex,
-			pageSize: data.pageSize,
-			nextCursor:
-				rows.results.length === data.pageSize && last
-					? { createdAt: last.created_at, id: last.id }
-					: null,
-		};
-	});
+		 ${rowWhere}
+		 ORDER BY o.created_at DESC, o.id DESC LIMIT ? OFFSET ?`,
+			)
+			.bind(...rowBindings, data.pageSize, offset),
+	]);
+	const count = countResult?.results?.[0] as { total: number } | undefined;
+	const rows = rowsResult as D1Result<AdminOrderRow>;
+	const items = rows.results.map((row) => ({
+		id: row.id,
+		externalOrderId: row.external_order_id,
+		status: row.status,
+		amount: minorToDecimal(row.amount_minor, row.currency_decimals),
+		currency: row.currency,
+		paymentAmount:
+			row.expected_amount_units !== null
+				? unitsToDecimal(BigInt(row.expected_amount_units), row.decimals)
+				: "",
+		receivedAmountUnits: row.received_amount_units,
+		assetCode: row.asset_code,
+		network: row.network,
+		networkName: row.network_name,
+		railKind: row.rail_kind,
+		decimals: row.decimals,
+		address: row.address,
+		adapter: row.adapter,
+		confirmations: row.confirmations,
+		requiredConfirmations: row.required_confirmations,
+		expiresAt: new Date(row.expires_at).toISOString(),
+		paidAt: row.paid_at ? new Date(row.paid_at).toISOString() : null,
+		createdAt: new Date(row.created_at).toISOString(),
+		notifyUrl: row.notify_url,
+	}));
+	const last = rows.results.at(-1);
+	return {
+		items,
+		total: count?.total ?? 0,
+		pageIndex: data.pageIndex,
+		pageSize: data.pageSize,
+		nextCursor:
+			rows.results.length === data.pageSize && last
+				? { createdAt: last.created_at, id: last.id }
+				: null,
+	};
+}
 
 export const simulateOrderPaymentFn = createServerFn({ method: "POST" })
 	.validator((input) => orderIdSchema.parse(input))

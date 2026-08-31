@@ -37,6 +37,7 @@ import {
 	checkAdminOrderPaymentFn,
 	createDevelopmentOrderFn,
 	listAdminOrdersFn,
+	listMerchantOrdersFn,
 	refundAdminOrderFn,
 	resendOrderNotificationFn,
 	simulateDevelopmentOrderStatusFn,
@@ -57,7 +58,9 @@ type OrderRecord = Awaited<
 >["items"][number];
 
 export function OrdersPage() {
-	const { permissions } = useNavigation();
+	const { permissions, merchantPermissions } = useNavigation();
+	const merchantWorkspace =
+		permissions.length === 0 && (merchantPermissions?.length ?? 0) > 0;
 	const tableUrlState = useCurrentProTableUrlState({
 		searchColumnId: "externalOrderId",
 	});
@@ -73,7 +76,7 @@ export function OrdersPage() {
 	const [simulatingOrder, setSimulatingOrder] = useState<OrderRecord | null>(
 		null,
 	);
-	const development = import.meta.env.DEV;
+	const development = import.meta.env.DEV && !merchantWorkspace;
 	const canCreateDevelopmentOrder =
 		development &&
 		hasSystemPermission(permissions, systemPermission("orders", "create"));
@@ -92,7 +95,10 @@ export function OrdersPage() {
 				snapshotRef.current = { key, at: Date.now(), cursors: new Map() };
 			const snapshot = snapshotRef.current;
 			try {
-				const result = await listAdminOrdersFn({
+				const listOrders = merchantWorkspace
+					? listMerchantOrdersFn
+					: listAdminOrdersFn;
+				const result = await listOrders({
 					data: {
 						pageIndex: state.pagination.pageIndex,
 						pageSize: state.pagination.pageSize,
@@ -113,7 +119,7 @@ export function OrdersPage() {
 				throw error;
 			}
 		},
-		[markFailure, markSuccess],
+		[markFailure, markSuccess, merchantWorkspace],
 	);
 	const simulate = useMutation({
 		mutationFn: simulateOrderPaymentFn,
@@ -234,7 +240,10 @@ export function OrdersPage() {
 						row.original.status,
 					);
 					const refundable = ["paid", "overpaid"].includes(row.original.status);
-					if (!(development || active || refundable || row.original.notifyUrl))
+					if (
+						merchantWorkspace ||
+						!(development || active || refundable || row.original.notifyUrl)
+					)
 						return null;
 					return (
 						<div className="flex justify-end">
@@ -333,7 +342,7 @@ export function OrdersPage() {
 				},
 			},
 		],
-		[simulate, checkPayment, cancel, resendNotification],
+		[simulate, checkPayment, cancel, resendNotification, merchantWorkspace],
 	);
 	return (
 		<>

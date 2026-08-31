@@ -520,6 +520,12 @@ export function merchantSidebarData(
 				title: m.nav_group_open_integrations(),
 				items: [
 					{
+						id: "orders",
+						title: m.system_nav_orders(),
+						url: "/admin/orders",
+						icon: WalletCards,
+					},
+					{
 						id: "api-keys",
 						title: m.api_keys_title(),
 						url: "/admin/api-keys",
@@ -546,6 +552,7 @@ export function canAccessMerchantPath(
 	return (
 		hasMerchantPermission(permissions, "merchant", 1) &&
 		(normalized === "/admin" ||
+			normalized === "/admin/orders" ||
 			normalized === "/admin/api-keys" ||
 			normalized === "/admin/merchant/members")
 	);
