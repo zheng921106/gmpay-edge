@@ -1,10 +1,14 @@
+import { createServerFn } from "@tanstack/react-start";
+import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import type { MerchantEnvironmentContext } from "#/db/schema";
 import {
 	AccessDeniedError,
-	type EffectiveUserAccess,
+	type AccessSessionUser,
 } from "#/features/access/server/access-cache";
+import { getAuth } from "#/features/auth/server/auth";
 import { getCloudflareEnv } from "#/server/db.server";
+import type { RuntimeDatabase } from "#/server/runtime/types";
 import { loadRequestRuntimeConfig } from "#/server/runtime-config";
 
 export const merchantContextCookieName = "GMPAY_MERCHANT_CONTEXT";
@@ -22,6 +26,11 @@ const signedContextSchema = z.object({
 });
 
 export type SignedMerchantContext = MerchantEnvironmentContext;
+
+export type MerchantSessionAccess = {
+	user: AccessSessionUser;
+	root: boolean;
+};
 
 export async function signMerchantContext(
 	context: MerchantEnvironmentContext,
@@ -93,7 +102,7 @@ export function clearMerchantContext() {
 
 export async function loadMerchantContext(
 	request: Request,
-	access: Pick<EffectiveUserAccess, "user" | "root">,
+	access: MerchantSessionAccess,
 ): Promise<MerchantEnvironmentContext> {
 	const db = getCloudflareEnv(request).DB;
 	if (!db) throw new Error("D1 binding DB is unavailable");
@@ -112,7 +121,14 @@ export async function loadMerchantContext(
 		config.betterAuthSecret,
 	);
 	if (!context) throw new AccessDeniedError(403);
+	return validateMerchantContext(db, access, context);
+}
 
+export async function validateMerchantContext(
+	db: RuntimeDatabase,
+	access: MerchantSessionAccess,
+	context: MerchantEnvironmentContext,
+): Promise<MerchantEnvironmentContext> {
 	const merchant = access.root
 		? await db
 				.prepare("SELECT id FROM merchants WHERE id = ? AND status = 'active'")
@@ -145,6 +161,52 @@ export async function loadMerchantContext(
 		environment: environment.code,
 	};
 }
+
+export async function loadMerchantSession(
+	request: Request,
+): Promise<MerchantSessionAccess> {
+	const session = await (await getAuth(request)).api.getSession({
+		headers: request.headers,
+	});
+	if (!session?.user) throw new AccessDeniedError(401);
+	const user = session.user as AccessSessionUser;
+	if (user.enabled !== true) throw new AccessDeniedError(403);
+	const db = getCloudflareEnv(request).DB;
+	if (!db) throw new Error("D1 binding DB is unavailable");
+	const root = await db
+		.prepare(
+			`SELECT r.id FROM user_roles ur
+			 JOIN roles r ON r.id = ur.role_id
+			 WHERE ur.user_id = ? AND r.merchant_id IS NULL
+			   AND r.name = 'root' AND r.enabled = 1 LIMIT 1`,
+		)
+		.bind(user.id)
+		.first<{ id: string }>();
+	return { user, root: Boolean(root) };
+}
+
+const merchantContextSelectionInput = z.object({
+	merchantId: z.uuid(),
+	environmentId: z.uuid(),
+	environment: z.enum(["sandbox", "production"]),
+});
+
+export const selectMerchantContextFn = createServerFn({ method: "POST" })
+	.validator((input: z.input<typeof merchantContextSelectionInput>) =>
+		merchantContextSelectionInput.parse(input),
+	)
+	.handler(async ({ data }) => {
+		const request = getRequest();
+		const env = getCloudflareEnv(request);
+		if (!env.DB) throw new Error("D1 binding DB is unavailable");
+		const context = await validateMerchantContext(
+			env.DB,
+			await loadMerchantSession(request),
+			data,
+		);
+		setResponseHeader("set-cookie", await setMerchantContext(request, context));
+		return context;
+	});
 
 function readCookie(header: string | null, name: string) {
 	return header

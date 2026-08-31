@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useSiteBrand } from "#/context/site-brand-provider";
 import { UserAuthForm } from "#/features/auth/components/user-auth-form";
 import { m } from "#/paraglide/messages";
@@ -20,6 +21,15 @@ export function SignIn({ redirectTo = "/admin" }: SignInProps) {
 				</p>
 			</div>
 			<UserAuthForm redirectTo={redirectTo} />
+			<p className="text-center text-muted-foreground text-sm">
+				{m.auth_sign_up_need_account()}{" "}
+				<Link
+					className="font-medium text-foreground hover:underline"
+					to="/sign-up"
+				>
+					{m.auth_sign_up_submit()}
+				</Link>
+			</p>
 		</div>
 	);
 }

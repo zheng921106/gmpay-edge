@@ -1,11 +1,10 @@
 import { mergeRolePermissions } from "#/features/access/permissions";
-import {
-	AccessDeniedError,
-	type AccessSessionUser,
-} from "#/features/access/server/access-cache";
-import { getAuth } from "#/features/auth/server/auth";
+import { AccessDeniedError } from "#/features/access/server/access-cache";
 import { getCloudflareEnv } from "#/server/db.server";
-import { loadMerchantContext } from "#/server/merchant-context";
+import {
+	loadMerchantContext,
+	loadMerchantSession,
+} from "#/server/merchant-context";
 
 export type MerchantPermission = {
 	module: string;
@@ -101,25 +100,4 @@ export async function requireMerchantAccess(
 		context,
 		merchantPermissions,
 	};
-}
-
-async function loadMerchantSession(request: Request) {
-	const session = await (await getAuth(request)).api.getSession({
-		headers: request.headers,
-	});
-	if (!session?.user) throw new AccessDeniedError(401);
-	const user = session.user as AccessSessionUser;
-	if (user.enabled !== true) throw new AccessDeniedError(403);
-	const db = getCloudflareEnv(request).DB;
-	if (!db) throw new Error("D1 binding DB is unavailable");
-	const root = await db
-		.prepare(
-			`SELECT r.id FROM user_roles ur
-			 JOIN roles r ON r.id = ur.role_id
-			 WHERE ur.user_id = ? AND r.merchant_id IS NULL
-			   AND r.name = 'root' AND r.enabled = 1 LIMIT 1`,
-		)
-		.bind(user.id)
-		.first<{ id: string }>();
-	return { user, root: Boolean(root) };
 }

@@ -27,7 +27,7 @@ describe("merchant context cookie", () => {
 
 	it("rejects tampering, wrong secrets, and expired contexts", async () => {
 		const value = await signMerchantContext(context, "context-secret", 1_000);
-		const [payload, signature] = value.split(".");
+		const [payload = "", signature = ""] = value.split(".");
 		const tampered = `${payload.slice(0, -1)}x.${signature}`;
 		expect(
 			await parseMerchantContextCookie(tampered, "context-secret", 1_001),
