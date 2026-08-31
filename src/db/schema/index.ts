@@ -3,4 +3,5 @@ export * from "./auth";
 export * from "./payments";
 export * from "./settings";
 export * from "./telegram";
+export * from "./tenant";
 export * from "./webhooks";

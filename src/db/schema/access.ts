@@ -8,18 +8,28 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { users } from "./auth";
 import { timestamps } from "./common";
+import { merchants } from "./tenant";
 
 export const roles = sqliteTable(
 	"roles",
 	{
 		id: text("id").primaryKey(),
 		name: text("name").notNull(),
+		merchantId: text("merchant_id").references(() => merchants.id, {
+			onDelete: "cascade",
+		}),
 		description: text("description"),
 		builtIn: integer("built_in", { mode: "boolean" }).notNull().default(false),
 		enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
 		...timestamps,
 	},
-	(table) => [uniqueIndex("roles_name_uidx").on(table.name)],
+	(table) => [
+		uniqueIndex("roles_merchant_name_uidx").on(table.merchantId, table.name),
+		uniqueIndex("roles_global_name_uidx")
+			.on(table.name)
+			.where(sql`${table.merchantId} IS NULL`),
+		index("roles_merchant_idx").on(table.merchantId),
+	],
 );
 
 export const rolePermissions = sqliteTable(
