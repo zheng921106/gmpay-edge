@@ -34,16 +34,29 @@ type MethodConnection = {
 
 export const paymentAdapterCandidateLimit = 8;
 
+type PaymentResourceScope = {
+	merchantId: string;
+	environmentId: string;
+};
+
 export async function createReceivingMethodAdapters(
 	db: D1Database,
 	receivingMethodId: string,
 	sharedRuntime?: RuntimeConfig,
+	scope?: PaymentResourceScope,
 ) {
 	const method = await db
 		.prepare(
-			"SELECT target_value, config_encrypted FROM receiving_methods WHERE id = ? LIMIT 1",
+			`SELECT target_value, config_encrypted FROM receiving_methods
+			 WHERE id = ?
+			 AND (? = 0 OR (merchant_id IS ? AND environment_id IS ?)) LIMIT 1`,
 		)
-		.bind(receivingMethodId)
+		.bind(
+			receivingMethodId,
+			scope ? 1 : 0,
+			scope?.merchantId ?? null,
+			scope?.environmentId ?? null,
+		)
 		.first<{
 			target_value: string;
 			config_encrypted: string | null;
@@ -76,6 +89,7 @@ export async function createReceivingMethodAdapters(
 					link.payment_asset_id,
 					method.target_value,
 					providerConfig,
+					scope,
 				),
 			),
 		)
@@ -87,6 +101,7 @@ export async function createPaymentMethodAdapters(
 	paymentMethodId: string,
 	targetValue?: string,
 	receivingProviderConfig?: Record<string, unknown>,
+	scope?: PaymentResourceScope,
 ) {
 	const rows = await db
 		.prepare(
@@ -103,10 +118,17 @@ export async function createPaymentMethodAdapters(
 				 LEFT JOIN payment_ingress_credentials credential ON credential.payment_ingress_id = pc.id
 			 WHERE pa.id = ?
 			 AND pc.enabled = 1
+			 AND (? = 0 OR (pc.merchant_id IS ? AND pc.environment_id IS ?))
 			 ORDER BY CASE pc.health_status WHEN 'healthy' THEN 0 WHEN 'degraded' THEN 1 ELSE 2 END,
 			 pc.priority, pc.id LIMIT ?`,
 		)
-		.bind(paymentMethodId, paymentAdapterCandidateLimit)
+		.bind(
+			paymentMethodId,
+			scope ? 1 : 0,
+			scope?.merchantId ?? null,
+			scope?.environmentId ?? null,
+			paymentAdapterCandidateLimit,
+		)
 		.all<MethodConnection>();
 	const adapters: Array<{
 		connectionId: string;

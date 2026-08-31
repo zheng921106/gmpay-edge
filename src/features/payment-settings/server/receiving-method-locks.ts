@@ -196,7 +196,8 @@ export async function allocateReceivingMethodAndSnapshot(
 						FROM receiving_methods receiving
 						JOIN receiving_method_assets link ON link.receiving_method_id = receiving.id
 						JOIN payment_assets asset ON asset.id = link.payment_asset_id
-						WHERE receiving.id = ? AND asset.id = ? AND receiving.enabled = 1`,
+						WHERE receiving.id = ? AND asset.id = ? AND receiving.enabled = 1
+						AND receiving.merchant_id IS ? AND receiving.environment_id IS ?`,
 				)
 				.bind(
 					input.orderId,
@@ -217,6 +218,8 @@ export async function allocateReceivingMethodAndSnapshot(
 					now,
 					input.receivingMethodId,
 					input.paymentMethodId,
+					input.merchantId ?? null,
+					input.environmentId ?? null,
 				),
 		);
 	}
@@ -232,6 +235,7 @@ export async function allocateReceivingMethodAndSnapshot(
 					JOIN receiving_method_assets link ON link.receiving_method_id = receiving.id
 					JOIN payment_assets asset ON asset.id = link.payment_asset_id
 					WHERE receiving.id = ? AND asset.id = ? AND receiving.enabled = 1
+					AND receiving.merchant_id IS ? AND receiving.environment_id IS ?
 					AND (? = 0 OR changes() = 1)
 					`,
 			)
@@ -245,6 +249,8 @@ export async function allocateReceivingMethodAndSnapshot(
 				now,
 				input.receivingMethodId,
 				input.paymentMethodId,
+				input.merchantId ?? null,
+				input.environmentId ?? null,
 				input.order ? 1 : 0,
 			),
 	);
@@ -259,7 +265,11 @@ export async function allocateReceivingMethodAndSnapshot(
 					 FROM receiving_methods receiving
 					 JOIN receiving_method_assets link ON link.receiving_method_id = receiving.id
 					 JOIN payment_assets asset ON asset.id = link.payment_asset_id
-					 WHERE orders.id = ? AND receiving.id = ? AND asset.id = ? AND orders.version = ?
+					WHERE orders.id = ?
+					AND orders.merchant_id IS ? AND orders.environment_id IS ?
+					AND receiving.id = ? AND asset.id = ?
+					AND receiving.merchant_id IS ? AND receiving.environment_id IS ?
+					AND orders.version = ?
 					 AND receiving.enabled = 1
 					 AND orders.status = 'pending' AND orders.received_amount_units = '0'
 					 AND NOT EXISTS (SELECT 1 FROM order_payment_snapshots WHERE order_id = orders.id)
@@ -269,8 +279,12 @@ export async function allocateReceivingMethodAndSnapshot(
 				.bind(
 					now,
 					input.orderId,
+					input.merchantId ?? null,
+					input.environmentId ?? null,
 					input.receivingMethodId,
 					input.paymentMethodId,
+					input.merchantId ?? null,
+					input.environmentId ?? null,
 					input.existingOrder.expectedVersion,
 					lockId,
 				),
@@ -295,7 +309,9 @@ export async function allocateReceivingMethodAndSnapshot(
 					JOIN payment_assets asset ON asset.id = link.payment_asset_id
 					JOIN payment_rails rail ON rail.code = asset.rail_code
 					JOIN payment_ingresses connection ON connection.id = ?
-					WHERE receiving.id = ? AND asset.id = ? AND changes() = 1`,
+					WHERE receiving.id = ? AND asset.id = ?
+					AND receiving.merchant_id IS ? AND receiving.environment_id IS ?
+					AND changes() = 1`,
 			)
 			.bind(
 				input.orderId,
@@ -309,6 +325,8 @@ export async function allocateReceivingMethodAndSnapshot(
 				method.connection_id,
 				input.receivingMethodId,
 				input.paymentMethodId,
+				input.merchantId ?? null,
+				input.environmentId ?? null,
 			),
 	);
 	statements.push(

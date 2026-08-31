@@ -24,9 +24,18 @@ export async function checkReceivingMethodReadiness(
 		requireEnabled?: boolean;
 		now?: number;
 		validateTarget?: boolean;
+		merchantId?: string;
+		environmentId?: string;
 	} = {},
 ): Promise<ReceivingMethodReadiness> {
 	const checkedAt = options.now ?? Date.now();
+	const scope =
+		options.merchantId !== undefined && options.environmentId !== undefined
+			? {
+					merchantId: options.merchantId,
+					environmentId: options.environmentId,
+				}
+			: undefined;
 	const methods = await db
 		.prepare(
 			`SELECT rm.id, rm.enabled, link.payment_asset_id AS payment_method_id,
@@ -34,17 +43,31 @@ export async function checkReceivingMethodReadiness(
 			 pa.kind AS asset_kind, pa.contract_address,
 			 pr.code AS rail_code,
 			 EXISTS (SELECT 1 FROM payment_ingresses pc WHERE pc.rail_code = pa.rail_code
-			  AND pc.enabled = 1) AS connection_enabled,
+			  AND pc.enabled = 1
+			  AND (? = 0 OR (pc.merchant_id IS ? AND pc.environment_id IS ?))) AS connection_enabled,
 			 EXISTS (SELECT 1 FROM payment_ingresses pc WHERE pc.rail_code = pa.rail_code
 			  AND pc.enabled = 1
+			  AND (? = 0 OR (pc.merchant_id IS ? AND pc.environment_id IS ?))
 			  AND (pr.kind IN ('exchange', 'wallet') OR pc.health_status = 'healthy')) AS connection_healthy
 			 FROM receiving_methods rm
 			 JOIN receiving_method_assets link ON link.receiving_method_id = rm.id
 			 JOIN payment_assets pa ON pa.id = link.payment_asset_id
 			 JOIN payment_rails pr ON pr.code = pa.rail_code
-			 WHERE rm.id = ?`,
+			 WHERE rm.id = ?
+			 AND (? = 0 OR (rm.merchant_id IS ? AND rm.environment_id IS ?))`,
 		)
-		.bind(methodId)
+		.bind(
+			scope ? 1 : 0,
+			scope?.merchantId ?? null,
+			scope?.environmentId ?? null,
+			scope ? 1 : 0,
+			scope?.merchantId ?? null,
+			scope?.environmentId ?? null,
+			methodId,
+			scope ? 1 : 0,
+			scope?.merchantId ?? null,
+			scope?.environmentId ?? null,
+		)
 		.all<ReceivingMethodReadinessRow>();
 	const method = methods.results[0];
 	if (!method)
@@ -80,7 +103,12 @@ export async function checkReceivingMethodReadiness(
 		]);
 	let adapters: Awaited<ReturnType<typeof createReceivingMethodAdapters>>;
 	try {
-		adapters = await createReceivingMethodAdapters(db, method.id);
+		adapters = await createReceivingMethodAdapters(
+			db,
+			method.id,
+			undefined,
+			scope,
+		);
 	} catch {
 		return result(methodId, checkedAt, "missing_target", [
 			reason("INVALID_TARGET", "The receiving configuration is invalid."),

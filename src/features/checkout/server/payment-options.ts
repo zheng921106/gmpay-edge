@@ -20,6 +20,8 @@ export const paymentOptionInput = z.object({
 
 type OrderForSelection = {
 	id: string;
+	merchant_id: string | null;
+	environment_id: string | null;
 	external_order_id: string;
 	status: string;
 	amount: string;
@@ -79,10 +81,18 @@ export async function listCheckoutPaymentOptions(
 			 JOIN payment_rails pr ON pr.code = a.rail_code
 			 WHERE rm.enabled = 1
 			 AND rm.target_value != ''
+			 AND rm.merchant_id IS ? AND rm.environment_id IS ?
 			 AND EXISTS (SELECT 1 FROM payment_ingresses pc WHERE pc.rail_code = a.rail_code
 			  AND pc.enabled = 1
+			  AND pc.merchant_id IS ? AND pc.environment_id IS ?
 			  AND (pr.kind IN ('exchange', 'wallet') OR pc.health_status = 'healthy'))
 			 ORDER BY rm.sort_order, rm.name`,
+		)
+		.bind(
+			order.merchant_id,
+			order.environment_id,
+			order.merchant_id,
+			order.environment_id,
 		)
 		.all<{
 			receiving_method_id: string;
@@ -192,6 +202,10 @@ export async function selectCheckoutPaymentOption(
 	const readiness = await checkReceivingMethodReadiness(
 		db,
 		data.receivingMethodId,
+		{
+			merchantId: order.merchant_id ?? undefined,
+			environmentId: order.environment_id ?? undefined,
+		},
 	);
 	if (!readiness.ready)
 		throw new PaymentOptionError("receiving_method_not_ready", 409);
@@ -201,11 +215,17 @@ export async function selectCheckoutPaymentOption(
 		 rm.min_amount_minor, rm.max_amount_minor,
 		 a.rail_code AS network
 		 FROM receiving_methods rm
-		 JOIN receiving_method_assets link ON link.receiving_method_id = rm.id
-		 JOIN payment_assets a ON a.id = link.payment_asset_id
-		 WHERE rm.id = ? AND a.id = ? LIMIT 1`,
+			 JOIN receiving_method_assets link ON link.receiving_method_id = rm.id
+			 JOIN payment_assets a ON a.id = link.payment_asset_id
+			 WHERE rm.id = ? AND a.id = ?
+			 AND rm.merchant_id IS ? AND rm.environment_id IS ? LIMIT 1`,
 		)
-		.bind(data.receivingMethodId, data.paymentMethodId)
+		.bind(
+			data.receivingMethodId,
+			data.paymentMethodId,
+			order.merchant_id,
+			order.environment_id,
+		)
 		.first<{
 			id: string;
 			payment_method_id: string;
@@ -245,6 +265,8 @@ export async function selectCheckoutPaymentOption(
 		orderId: order.id,
 		receivingMethodId: method.id,
 		paymentMethodId: method.payment_method_id,
+		merchantId: order.merchant_id ?? undefined,
+		environmentId: order.environment_id ?? undefined,
 		decimals: method.decimals,
 		expectedAmountUnits: decimalToUnits(
 			paymentAmount,
@@ -342,7 +364,7 @@ function selectedResult(
 async function readOrder(db: D1Database, id: string) {
 	const row = await db
 		.prepare(
-			`SELECT o.id, o.external_order_id, o.status, o.amount_minor,
+			`SELECT o.id, o.merchant_id, o.environment_id, o.external_order_id, o.status, o.amount_minor,
 			 o.currency, o.currency_decimals, o.description, o.return_url, o.expires_at,
 			 o.received_amount_units, o.payment_asset_id,
 			 o.provider_order_id, o.payment_url, o.version,

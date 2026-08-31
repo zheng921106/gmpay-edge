@@ -133,7 +133,10 @@ async function createOrderRecord(
 		)
 		.all<{ id: string }>();
 	for (const method of methods.results) {
-		const readiness = await checkReceivingMethodReadiness(db, method.id);
+		const readiness = await checkReceivingMethodReadiness(db, method.id, {
+			merchantId: context.merchantId,
+			environmentId: context.environmentId,
+		});
 		if (readiness.ready)
 			return createOrderFromReceivingMethod(
 				db,
@@ -189,7 +192,10 @@ async function createOrderFromReceivingMethod(
 ): Promise<ApiOrder> {
 	const methodId = input.receivingMethodId;
 	if (!methodId) throw new Error("Receiving method is required");
-	const readiness = await checkReceivingMethodReadiness(db, methodId);
+	const readiness = await checkReceivingMethodReadiness(db, methodId, {
+		merchantId: context.merchantId,
+		environmentId: context.environmentId,
+	});
 	if (!readiness.ready)
 		throw new OrderServiceError(
 			"receiving_method_not_ready",
