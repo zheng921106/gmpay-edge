@@ -34,7 +34,7 @@ type MethodConnection = {
 
 export const paymentAdapterCandidateLimit = 8;
 
-type PaymentResourceScope = {
+export type PaymentResourceScope = {
 	merchantId: string;
 	environmentId: string;
 };

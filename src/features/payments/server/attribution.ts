@@ -1,4 +1,5 @@
 import { paymentTransactionId } from "#/features/payments/server/reconciliation";
+import type { PaymentResourceScope } from "#/features/payment-settings/server/method-adapter";
 import type { NormalizedTransaction } from "#/integrations/chains/types";
 import { DomainError } from "#/lib/domain-error";
 import { immediateReleaseModeSql } from "#/server/operational-settings";
@@ -53,6 +54,7 @@ export async function resolvePaymentTransactionOrder(
 	db: D1Database,
 	transaction: NormalizedTransaction,
 	preferredOrderId?: string,
+	scope?: PaymentResourceScope,
 ): Promise<PaymentAttribution> {
 	const existing = await db
 		.prepare(
@@ -82,6 +84,7 @@ export async function resolvePaymentTransactionOrder(
 			 AND lock.asset_id = ops.asset_id
 			 WHERE ops.rail_code = ? AND ops.asset_code = ?
 			 AND ${targetPredicate}
+			 AND (? = 0 OR (o.merchant_id IS ? AND o.environment_id IS ?))
 			 AND o.status IN (
 			  'pending','confirming','partially_paid','paid','overpaid','expired','cancelled'
 			 )
@@ -98,6 +101,9 @@ export async function resolvePaymentTransactionOrder(
 			transaction.network,
 			transaction.assetCode,
 			transaction.to,
+			scope ? 1 : 0,
+			scope?.merchantId ?? null,
+			scope?.environmentId ?? null,
 			transaction.timestamp.getTime(),
 			transaction.timestamp.getTime(),
 			preferredOrderId ?? "",

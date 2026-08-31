@@ -219,6 +219,7 @@ async function resolveWebhookDelivery(
 			 JOIN webhook_events e ON e.id = d.event_id
 			 JOIN orders o ON o.id = d.order_id
 			 JOIN api_keys k ON k.id = d.api_key_id
+			  AND k.merchant_id IS o.merchant_id AND k.environment_id IS o.environment_id
 			 LEFT JOIN order_payment_snapshots ops ON ops.order_id = o.id
 			 WHERE d.id = ? AND e.id = ? LIMIT 1`,
 		)

@@ -1,4 +1,7 @@
-import { createReceivingMethodAdapters } from "#/features/payment-settings/server/method-adapter";
+import {
+	createReceivingMethodAdapters,
+	type PaymentResourceScope,
+} from "#/features/payment-settings/server/method-adapter";
 import {
 	PaymentAttributionAmbiguousError,
 	PaymentAttributionNotFoundError,
@@ -26,7 +29,7 @@ export async function handlePaymentScan(
 ): Promise<void> {
 	const payment = await env.DB.prepare(
 		`SELECT ops.asset_code, ops.target_value, o.provider_order_id,
-		 o.payment_scan_cursor
+		 o.payment_scan_cursor, o.merchant_id, o.environment_id
 		 FROM order_payment_snapshots ops
 		 JOIN orders o ON o.id = ops.order_id
 		 WHERE ops.order_id = ? AND ops.receiving_method_id = ? LIMIT 1`,
@@ -37,11 +40,14 @@ export async function handlePaymentScan(
 			target_value: string;
 			provider_order_id: string | null;
 			payment_scan_cursor: string | null;
+			merchant_id: string | null;
+			environment_id: string | null;
 		}>();
 	if (!payment) {
 		message.ack();
 		return;
 	}
+	const scope = paymentScope(payment);
 	const scan: AuthoritativePaymentScan = {
 		...message.body,
 		address: payment.target_value,
@@ -55,14 +61,21 @@ export async function handlePaymentScan(
 	let candidates: Awaited<ReturnType<typeof createReceivingMethodAdapters>>;
 	try {
 		const load = () =>
-			createReceivingMethodAdapters(
-				env.DB,
-				message.body.receivingMethodId,
-				runtime,
-			);
+			scope
+				? createReceivingMethodAdapters(
+						env.DB,
+						message.body.receivingMethodId,
+						runtime,
+						scope,
+					)
+				: createReceivingMethodAdapters(
+						env.DB,
+						message.body.receivingMethodId,
+						runtime,
+					);
 		if (!adapterCache) candidates = await load();
 		else {
-			const key = message.body.receivingMethodId;
+			const key = `${scope?.merchantId ?? "legacy"}:${scope?.environmentId ?? "legacy"}:${message.body.receivingMethodId}`;
 			let pending = adapterCache.get(key);
 			if (!pending) {
 				pending = load();
@@ -143,6 +156,7 @@ export async function handlePaymentScan(
 			message.body.orderId,
 			transactions,
 			runtime,
+			scope,
 		);
 		await advancePaymentScanCursor(env.DB, message.body.orderId, transactions);
 		message.ack();
@@ -370,6 +384,7 @@ export async function processScannedTransactions(
 	orderId: string,
 	transactions: Parameters<typeof recordPaymentTransaction>[2][],
 	runtime?: RuntimeConfig,
+	scope?: PaymentResourceScope,
 ) {
 	let skippedPreviouslyAttributed = 0;
 	let skippedAmbiguous = 0;
@@ -379,6 +394,7 @@ export async function processScannedTransactions(
 				env.DB,
 				transaction,
 				orderId,
+				scope,
 			);
 			await recordPaymentTransaction(
 				env,
@@ -397,6 +413,17 @@ export async function processScannedTransactions(
 		}
 	}
 	return { skippedPreviouslyAttributed, skippedAmbiguous };
+}
+
+function paymentScope(payment: {
+	merchant_id: string | null;
+	environment_id: string | null;
+}): PaymentResourceScope | undefined {
+	if (!(payment.merchant_id && payment.environment_id)) return undefined;
+	return {
+		merchantId: payment.merchant_id,
+		environmentId: payment.environment_id,
+	};
 }
 
 async function recordPaymentScanIssue(

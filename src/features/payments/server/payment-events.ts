@@ -23,7 +23,8 @@ export async function matchingWebhookEndpoints(
 	const endpoint = await db
 		.prepare(
 			`SELECT o.id, o.notify_url AS url, k.id AS api_key_id, k.secret_encrypted
-		 FROM orders o JOIN api_keys k ON k.id = o.api_key_id
+			 FROM orders o JOIN api_keys k ON k.id = o.api_key_id
+			  AND k.merchant_id IS o.merchant_id AND k.environment_id IS o.environment_id
 		 WHERE o.id = ? AND o.notify_url IS NOT NULL LIMIT 1`,
 		)
 		.bind(orderId)

@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { createPaymentMethodAdapters } from "#/features/payment-settings/server/method-adapter";
+import {
+	createPaymentMethodAdapters,
+	type PaymentResourceScope,
+} from "#/features/payment-settings/server/method-adapter";
 import {
 	PaymentAttributionAmbiguousError,
 	PaymentAttributionNotFoundError,
@@ -37,6 +40,8 @@ type ProviderEventRow = {
 	source_mode: "shadow" | "active";
 	enabled: number;
 	network: string;
+	merchant_id: string | null;
+	environment_id: string | null;
 };
 
 type PaymentCandidate = {
@@ -83,7 +88,8 @@ export async function handlePaymentProviderEvent(
 	const row = await env.DB.prepare(
 		`SELECT event.source_id, event.trigger, event.attempt_count,
 		 event.ingest_mode AS event_mode,
-		 source.mode AS source_mode, source.enabled, source.network
+			 source.mode AS source_mode, source.enabled, source.network,
+			 source.merchant_id, source.environment_id
 		 FROM inbound_provider_events event
 		 JOIN payment_ingresses source ON source.id = event.source_id
 		 WHERE event.id = ? LIMIT 1`,
@@ -104,10 +110,16 @@ export async function handlePaymentProviderEvent(
 		message.ack();
 		return;
 	}
+	const scope = providerEventScope(row);
 
 	try {
 		const trigger = triggerSchema.parse(JSON.parse(row.trigger));
-		const candidates = await loadCandidates(env.DB, row.network, trigger);
+		const candidates = await loadCandidates(
+			env.DB,
+			row.network,
+			trigger,
+			scope,
+		);
 		if (candidates.length === 21) throw new PaymentAttributionAmbiguousError();
 		if (!candidates.length) {
 			await completeProviderEvent(
@@ -123,6 +135,7 @@ export async function handlePaymentProviderEvent(
 			env.DB,
 			candidates,
 			trigger,
+			scope,
 		);
 		if (!transaction) {
 			if (row.attempt_count < 3)
@@ -148,10 +161,14 @@ export async function handlePaymentProviderEvent(
 			message.ack();
 			return;
 		}
-		const attribution = await resolvePaymentTransactionOrder(
-			env.DB,
-			transaction,
-		);
+		const attribution = scope
+			? await resolvePaymentTransactionOrder(
+					env.DB,
+					transaction,
+					undefined,
+					scope,
+				)
+			: await resolvePaymentTransactionOrder(env.DB, transaction);
 		const active = row.event_mode === "active" && row.source_mode === "active";
 		if (active)
 			await recordPaymentTransaction(
@@ -248,6 +265,7 @@ async function loadCandidates(
 	db: D1Database,
 	network: string,
 	trigger: z.infer<typeof triggerSchema>,
+	scope?: PaymentResourceScope,
 ) {
 	const rows = await db
 		.prepare(
@@ -260,6 +278,7 @@ async function loadCandidates(
 			  AND lock.receiving_method_id = ops.receiving_method_id
 			  AND lock.asset_id = ops.asset_id
 			 WHERE ops.rail_code = ? AND LOWER(ops.target_value) = ?
+			 AND (? = 0 OR (o.merchant_id IS ? AND o.environment_id IS ?))
 			 AND o.status IN (
 			  'pending','confirming','partially_paid','paid','overpaid','expired','cancelled'
 			 ) AND (
@@ -274,6 +293,9 @@ async function loadCandidates(
 		.bind(
 			network,
 			trigger.toAddress.toLowerCase(),
+			scope ? 1 : 0,
+			scope?.merchantId ?? null,
+			scope?.environmentId ?? null,
 			trigger.contractAddress,
 			trigger.contractAddress,
 			trigger.contractAddress,
@@ -287,16 +309,25 @@ async function loadAuthoritativeTransaction(
 	db: D1Database,
 	candidates: readonly PaymentCandidate[],
 	trigger: z.infer<typeof triggerSchema>,
+	scope?: PaymentResourceScope,
 ) {
 	let attempts = 0;
 	let retryableFailure = false;
 	let permanentFailure: string | undefined;
 	for (const candidate of candidates) {
-		const adapters = await createPaymentMethodAdapters(
-			db,
-			candidate.payment_asset_id,
-			candidate.target_value,
-		);
+		const adapters = scope
+			? await createPaymentMethodAdapters(
+					db,
+					candidate.payment_asset_id,
+					candidate.target_value,
+					undefined,
+					scope,
+				)
+			: await createPaymentMethodAdapters(
+					db,
+					candidate.payment_asset_id,
+					candidate.target_value,
+				);
 		for (const { adapter } of adapters) {
 			if (attempts >= maximumAdapterAttempts) break;
 			attempts += 1;
@@ -327,6 +358,16 @@ async function loadAuthoritativeTransaction(
 	if (!attempts)
 		throw new PermanentProviderEventError("authoritative_adapter_unavailable");
 	return null;
+}
+
+function providerEventScope(
+	row: Pick<ProviderEventRow, "merchant_id" | "environment_id">,
+): PaymentResourceScope | undefined {
+	if (!(row.merchant_id && row.environment_id)) return undefined;
+	return {
+		merchantId: row.merchant_id,
+		environmentId: row.environment_id,
+	};
 }
 
 function providerTriggerMatchesTransaction(
