@@ -50,6 +50,20 @@
       "when": 1787282057541,
       "tag": "0006_tearful_magdalene",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788193902386,
+      "tag": "0007_tricky_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788194003459,
+      "tag": "0008_panoramic_hellfire_club",
+      "breakpoints": true
     }
   ]
 }

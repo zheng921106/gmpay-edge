@@ -9,11 +9,19 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { users } from "./auth";
 import { timestamps } from "./common";
+import { merchantEnvironments, merchants } from "./tenant";
 
 export const apiKeys = sqliteTable(
 	"api_keys",
 	{
 		id: text("id").primaryKey(),
+		merchantId: text("merchant_id").references(() => merchants.id, {
+			onDelete: "cascade",
+		}),
+		environmentId: text("environment_id").references(
+			() => merchantEnvironments.id,
+			{ onDelete: "cascade" },
+		),
 		name: text("name").notNull(),
 		pid: text("pid").notNull().unique(),
 		secretEncrypted: text("secret_encrypted").notNull(),
@@ -24,7 +32,14 @@ export const apiKeys = sqliteTable(
 		revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
 		...timestamps,
 	},
-	(table) => [index("api_keys_created_idx").on(table.createdAt, table.id)],
+	(table) => [
+		index("api_keys_merchant_environment_idx").on(
+			table.merchantId,
+			table.environmentId,
+			table.createdAt,
+			table.id,
+		),
+	],
 );
 
 export const paymentRails = sqliteTable("payment_rails", {
@@ -60,6 +75,13 @@ export const paymentIngresses = sqliteTable(
 	"payment_ingresses",
 	{
 		id: text("id").primaryKey(),
+		merchantId: text("merchant_id").references(() => merchants.id, {
+			onDelete: "cascade",
+		}),
+		environmentId: text("environment_id").references(
+			() => merchantEnvironments.id,
+			{ onDelete: "cascade" },
+		),
 		railCode: text("rail_code").references(() => paymentRails.code),
 		name: text("name").notNull(),
 		type: text("type", {
@@ -142,10 +164,15 @@ export const paymentIngresses = sqliteTable(
 			)
 			.where(sql`${table.enabled} = 1`),
 		uniqueIndex("payment_ingresses_provider_network_uidx")
-			.on(table.provider, table.network)
+			.on(table.merchantId, table.environmentId, table.provider, table.network)
 			.where(sql`${table.type} = 'provider_webhook'`),
 		uniqueIndex("payment_ingresses_external_uidx")
-			.on(table.provider, table.externalSourceId)
+			.on(
+				table.merchantId,
+				table.environmentId,
+				table.provider,
+				table.externalSourceId,
+			)
 			.where(sql`${table.type} = 'provider_webhook'`),
 		index("payment_ingresses_reconcile_idx").on(
 			table.reconcileRequiredAt,
@@ -169,6 +196,13 @@ export const receivingMethods = sqliteTable(
 	"receiving_methods",
 	{
 		id: text("id").primaryKey(),
+		merchantId: text("merchant_id").references(() => merchants.id, {
+			onDelete: "cascade",
+		}),
+		environmentId: text("environment_id").references(
+			() => merchantEnvironments.id,
+			{ onDelete: "cascade" },
+		),
 		name: text("name").notNull(),
 		railCode: text("rail_code")
 			.notNull()
@@ -189,7 +223,9 @@ export const receivingMethods = sqliteTable(
 		...timestamps,
 	},
 	(table) => [
-		uniqueIndex("receiving_methods_rail_target_uidx").on(
+		uniqueIndex("receiving_methods_merchant_environment_target_uidx").on(
+			table.merchantId,
+			table.environmentId,
 			table.railCode,
 			table.normalizedTargetValue,
 		),
@@ -226,6 +262,13 @@ export const orders = sqliteTable(
 	"orders",
 	{
 		id: text("id").primaryKey(),
+		merchantId: text("merchant_id").references(() => merchants.id, {
+			onDelete: "cascade",
+		}),
+		environmentId: text("environment_id").references(
+			() => merchantEnvironments.id,
+			{ onDelete: "cascade" },
+		),
 		externalOrderId: text("external_order_id").notNull(),
 		apiKeyId: text("api_key_id").references(() => apiKeys.id),
 		apiProtocol: text("api_protocol", { enum: ["gmpay", "epay"] }),
@@ -267,13 +310,23 @@ export const orders = sqliteTable(
 		...timestamps,
 	},
 	(table) => [
-		uniqueIndex("orders_api_key_external_id_uidx")
-			.on(table.apiKeyId, table.externalOrderId)
+		uniqueIndex("orders_merchant_environment_api_key_external_id_uidx")
+			.on(
+				table.merchantId,
+				table.environmentId,
+				table.apiKeyId,
+				table.externalOrderId,
+			)
 			.where(sql`${table.apiKeyId} IS NOT NULL`),
-		uniqueIndex("orders_internal_external_id_uidx")
-			.on(table.externalOrderId)
+		uniqueIndex("orders_merchant_environment_external_id_uidx")
+			.on(table.merchantId, table.environmentId, table.externalOrderId)
 			.where(sql`${table.apiKeyId} IS NULL`),
-		index("orders_created_at_idx").on(table.createdAt, table.id),
+		index("orders_merchant_environment_created_at_idx").on(
+			table.merchantId,
+			table.environmentId,
+			table.createdAt,
+			table.id,
+		),
 		index("orders_status_idx").on(table.status),
 		index("orders_expiration_idx")
 			.on(table.expiresAt, table.id)
@@ -495,6 +548,13 @@ export const idempotencyKeys = sqliteTable(
 	"idempotency_keys",
 	{
 		id: text("id").primaryKey(),
+		merchantId: text("merchant_id").references(() => merchants.id, {
+			onDelete: "cascade",
+		}),
+		environmentId: text("environment_id").references(
+			() => merchantEnvironments.id,
+			{ onDelete: "cascade" },
+		),
 		key: text("key").notNull(),
 		requestHash: text("request_hash").notNull(),
 		responseStatus: integer("response_status"),
@@ -503,8 +563,16 @@ export const idempotencyKeys = sqliteTable(
 		...timestamps,
 	},
 	(table) => [
-		uniqueIndex("idempotency_key_uidx").on(table.key),
-		index("idempotency_keys_expires_idx").on(table.expiresAt),
+		uniqueIndex("idempotency_merchant_environment_key_uidx").on(
+			table.merchantId,
+			table.environmentId,
+			table.key,
+		),
+		index("idempotency_keys_expires_idx").on(
+			table.merchantId,
+			table.environmentId,
+			table.expiresAt,
+		),
 	],
 );
 
