@@ -3,6 +3,7 @@ import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "#/db/schema";
 import { registerMerchant } from "#/features/auth/server/registration";
+import { installSystem } from "#/features/installation/server/install";
 import { applyMigrations } from "../migrations";
 
 describe("automatic merchant registration", () => {
@@ -18,6 +19,11 @@ describe("automatic merchant registration", () => {
 		const d1 = await miniflare.getD1Database("DB");
 		await applyMigrations(d1);
 		db = drizzle(d1, { schema });
+		await installSystem(db, {
+			name: "Platform Root",
+			email: "root@acme.example",
+			password: "a-secure-root-password-123",
+		});
 	});
 
 	afterAll(async () => miniflare.dispose());
@@ -70,6 +76,42 @@ describe("automatic merchant registration", () => {
 			.bind(result.merchantId)
 			.first<{ status: string; name: string }>();
 		expect(membership).toEqual({ status: "active", name: "owner" });
+	});
+
+	it("provisions public payment ingress separately for every environment", async () => {
+		const result = await registerMerchant(db, {
+			name: "Ingress Merchant",
+			slug: "ingress-merchant",
+			email: "ingress-owner@acme.example",
+			password: "another-secure-password-123",
+		});
+		const ingresses = await db.$client
+			.prepare(
+				`SELECT environment_id, COUNT(*) AS count,
+				 SUM(CASE WHEN api_key IS NULL AND config_encrypted IS NULL THEN 1 ELSE 0 END) AS public_count
+				 FROM payment_ingresses
+				 WHERE merchant_id = ?
+				 GROUP BY environment_id
+				 ORDER BY environment_id`,
+			)
+			.bind(result.merchantId)
+			.all<{
+				environment_id: string;
+				count: number;
+				public_count: number;
+			}>();
+		expect(ingresses.results).toEqual([
+			{
+				environment_id: expect.any(String),
+				count: 15,
+				public_count: 15,
+			},
+			{
+				environment_id: expect.any(String),
+				count: 15,
+				public_count: 15,
+			},
+		]);
 	});
 
 	it("rejects duplicate email and slug without creating partial rows", async () => {

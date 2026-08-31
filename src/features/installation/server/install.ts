@@ -14,10 +14,10 @@ import {
 	user,
 	userRoles,
 } from "#/db/schema";
+import { merchantPaymentIngressValues } from "#/features/merchants/server/payment-ingresses";
 import {
 	initialExchangeRates,
 	initialPaymentAssets,
-	initialPaymentConnections,
 	initialPaymentRails,
 } from "#/features/payment-settings/catalog";
 import {
@@ -192,14 +192,11 @@ export async function installSystem(
 					updatedAt: now,
 				}),
 			),
-			...initialPaymentConnections.map((connection) =>
-				db.insert(paymentIngresses).values({
-					...connection,
-					apiKey: null,
-					createdAt: now,
-					updatedAt: now,
-				}),
-			),
+			...merchantPaymentIngressValues({
+				merchantId: "default-merchant",
+				environments: [{ id: "default-sandbox" }, { id: "default-production" }],
+				now,
+			}).map((ingress) => db.insert(paymentIngresses).values(ingress)),
 			...initialExchangeRates.map((rate) =>
 				db.insert(exchangeRates).values({
 					...rate,

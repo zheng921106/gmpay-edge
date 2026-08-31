@@ -1,4 +1,8 @@
 import { RBAC_REGISTERED_ACTION_MASK } from "#/features/access/rbac-bitmask";
+import {
+	merchantPaymentIngressInsertStatement,
+	merchantPaymentIngressValues,
+} from "#/features/merchants/server/payment-ingresses";
 import { DomainError } from "#/lib/domain-error";
 
 const roleMasks = {
@@ -56,6 +60,10 @@ export async function createPlatformMerchant(
 
 	const now = input.now ?? Date.now();
 	const merchantId = crypto.randomUUID();
+	const environments = [
+		{ id: crypto.randomUUID(), code: "sandbox" },
+		{ id: crypto.randomUUID(), code: "production" },
+	] as const;
 	const roleIds = new Map(
 		Object.keys(roleMasks).map((roleName) => [roleName, crypto.randomUUID()]),
 	);
@@ -65,13 +73,18 @@ export async function createPlatformMerchant(
 				"INSERT INTO merchants (id, slug, name, status, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)",
 			)
 			.bind(merchantId, slug, name, input.actorUserId, now, now),
-		...(["sandbox", "production"] as const).map((code) =>
+		...environments.map((environment) =>
 			db
 				.prepare(
 					"INSERT INTO merchant_environments (id, merchant_id, code, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)",
 				)
-				.bind(crypto.randomUUID(), merchantId, code, now, now),
+				.bind(environment.id, merchantId, environment.code, now, now),
 		),
+		...merchantPaymentIngressValues({
+			merchantId,
+			environments,
+			now: new Date(now),
+		}).map((ingress) => merchantPaymentIngressInsertStatement(db, ingress)),
 		db
 			.prepare(
 				"INSERT INTO merchant_memberships (id, merchant_id, user_id, status, accepted_at, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)",

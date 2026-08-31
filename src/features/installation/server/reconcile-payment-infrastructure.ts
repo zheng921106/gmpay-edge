@@ -1,7 +1,11 @@
 import {
+	type MerchantPaymentIngress,
+	merchantPaymentIngressInsertStatement,
+	merchantPaymentIngressValues,
+} from "#/features/merchants/server/payment-ingresses";
+import {
 	initialExchangeRates,
 	initialPaymentAssets,
-	initialPaymentConnections,
 	initialPaymentRails,
 } from "#/features/payment-settings/catalog";
 import {
@@ -67,42 +71,6 @@ export async function reconcilePaymentInfrastructure(
 					now,
 				),
 		});
-	for (const connection of initialPaymentConnections)
-		statements.push({
-			kind: "connections",
-			statement: database
-				.prepare(
-					`INSERT OR IGNORE INTO payment_ingresses
-					(id, rail_code, name, type, transport, endpoint, api_key, priority,
-					 enabled, health_status, created_at, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
-				)
-				.bind(
-					connection.id,
-					connection.railCode,
-					connection.name,
-					connection.type,
-					"transport" in connection ? connection.transport : "http",
-					connection.endpoint,
-					connection.priority,
-					connection.enabled,
-					connection.healthStatus,
-					now,
-					now,
-				),
-		});
-	for (const connection of initialPaymentConnections) {
-		if (!connection.endpoint) continue;
-		statements.push({
-			kind: "connections",
-			statement: database
-				.prepare(
-					`UPDATE payment_ingresses SET endpoint = ?, updated_at = ?
-					 WHERE id = ? AND (endpoint IS NULL OR trim(endpoint) = '')`,
-				)
-				.bind(connection.endpoint, now, connection.id),
-		});
-	}
 	for (const rate of initialExchangeRates) {
 		const manual = rate.source === "manual";
 		statements.push({
@@ -162,5 +130,30 @@ export async function reconcilePaymentInfrastructure(
 		const entry = statements[index];
 		if (entry) added[entry.kind] += result.meta.changes;
 	}
+	const environments = await database
+		.prepare("SELECT id, merchant_id FROM merchant_environments")
+		.all<{ id: string; merchant_id: string }>();
+	const ingressStatements: MerchantPaymentIngress[] = [];
+	for (const environment of environments.results) {
+		ingressStatements.push(
+			...merchantPaymentIngressValues({
+				merchantId: environment.merchant_id,
+				environments: [{ id: environment.id }],
+				now: new Date(now),
+			}),
+		);
+	}
+	const ingressResults = await database.batch(
+		ingressStatements.flatMap((ingress) => [
+			merchantPaymentIngressInsertStatement(database, ingress, true),
+			database
+				.prepare(
+					`UPDATE payment_ingresses SET endpoint = ?, updated_at = ?
+					 WHERE id = ? AND (endpoint IS NULL OR trim(endpoint) = '')`,
+				)
+				.bind(ingress.endpoint, now, ingress.id),
+		]),
+	);
+	for (const result of ingressResults) added.connections += result.meta.changes;
 	return added;
 }

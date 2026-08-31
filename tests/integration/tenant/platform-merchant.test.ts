@@ -1,5 +1,8 @@
+import { drizzle } from "drizzle-orm/d1";
 import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import * as schema from "#/db/schema";
+import { installSystem } from "#/features/installation/server/install";
 import { createPlatformMerchant } from "#/features/merchants/server/platform";
 import { applyMigrations } from "../migrations";
 
@@ -16,6 +19,11 @@ describe("platform merchant provisioning", () => {
 		});
 		db = await miniflare.getD1Database("DB");
 		await applyMigrations(db);
+		await installSystem(drizzle(db, { schema }), {
+			name: "Platform Root",
+			email: "root@platform.example",
+			password: "a-secure-root-password-123",
+		});
 		ownerId = "00000000-0000-4000-8000-000000000001";
 		await db
 			.prepare(
@@ -70,5 +78,15 @@ describe("platform merchant provisioning", () => {
 				{ name: "viewer" },
 			],
 		});
+		await expect(
+			db
+				.prepare(
+					`SELECT COUNT(*) AS count,
+					 SUM(CASE WHEN api_key IS NULL AND config_encrypted IS NULL THEN 1 ELSE 0 END) AS public_count
+					 FROM payment_ingresses WHERE merchant_id = ?`,
+				)
+				.bind(merchant.id)
+				.first<{ count: number; public_count: number }>(),
+		).resolves.toEqual({ count: 30, public_count: 30 });
 	});
 });

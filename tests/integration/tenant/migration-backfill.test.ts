@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -47,7 +47,7 @@ describe("multi-merchant legacy backfill migration", () => {
 				)
 				.bind(now + 60_000, now, now),
 		]);
-		await applyMigrationRange(db, 7, 8);
+		await applyMigrationRange(db, 7, 9);
 	});
 
 	afterAll(async () => miniflare.dispose());
@@ -101,6 +101,23 @@ describe("multi-merchant legacy backfill migration", () => {
 			order_environment_id: "default-production",
 			receiving_merchant_id: "default-merchant",
 			receiving_environment_id: "default-production",
+		});
+	});
+
+	it("creates a credential-free sandbox copy of the legacy payment ingress", async () => {
+		await expect(
+			db
+				.prepare(
+					`SELECT id, merchant_id, environment_id, api_key, config_encrypted
+					 FROM payment_ingresses WHERE id = 'default-sandbox:legacy-ingress'`,
+				)
+				.first(),
+		).resolves.toEqual({
+			id: "default-sandbox:legacy-ingress",
+			merchant_id: "default-merchant",
+			environment_id: "default-sandbox",
+			api_key: null,
+			config_encrypted: null,
 		});
 	});
 

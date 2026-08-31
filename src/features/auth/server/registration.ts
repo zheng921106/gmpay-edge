@@ -8,12 +8,14 @@ import {
 	merchantEnvironments,
 	merchantMemberships,
 	merchants,
+	paymentIngresses,
 	rolePermissions,
 	roles,
 	user,
 	userRoles,
 } from "#/db/schema";
 import { RBAC_REGISTERED_ACTION_MASK } from "#/features/access/rbac-bitmask";
+import { merchantPaymentIngressValues } from "#/features/merchants/server/payment-ingresses";
 import { DomainError } from "#/lib/domain-error";
 import { type AppDb, getDb } from "#/server/db.server";
 
@@ -84,6 +86,7 @@ export async function registerMerchant(
 	const merchantId = randomUUID();
 	const sandboxId = randomUUID();
 	const productionId = randomUUID();
+	const environments = [{ id: sandboxId }, { id: productionId }] as const;
 	const password = await hashPassword(input.password);
 	const roleIds = new Map(
 		["owner", "admin", "operator", "viewer"].map((name) => [
@@ -138,6 +141,11 @@ export async function registerMerchant(
 				updatedAt: now,
 			},
 		]),
+		...merchantPaymentIngressValues({
+			merchantId,
+			environments,
+			now,
+		}).map((ingress) => db.insert(paymentIngresses).values(ingress)),
 		db.insert(merchantMemberships).values({
 			id: randomUUID(),
 			merchantId,

@@ -85,6 +85,8 @@ describe("system installation", { timeout: 30_000 }, () => {
 			 (SELECT COUNT(*) FROM system_settings WHERE key LIKE 'runtime.%') AS runtime_settings,
 			 (SELECT COUNT(*) FROM payment_rails) AS payment_rails,
 			 (SELECT COUNT(*) FROM payment_ingresses) AS payment_ingresses,
+			 (SELECT COUNT(*) FROM payment_ingresses WHERE merchant_id IS NOT NULL AND environment_id IS NOT NULL) AS scoped_payment_ingresses,
+			 (SELECT COUNT(*) FROM payment_ingresses WHERE merchant_id IS NULL OR environment_id IS NULL) AS unscoped_payment_ingresses,
 			 (SELECT COUNT(*) FROM payment_assets) AS payment_assets,
 			 (SELECT COUNT(*) FROM receiving_methods) AS receiving_methods,
 				 (SELECT COUNT(*) FROM exchange_rates) AS exchange_rates,
@@ -100,7 +102,9 @@ describe("system installation", { timeout: 30_000 }, () => {
 			audits: 1,
 			runtime_settings: 4,
 			payment_rails: 11,
-			payment_ingresses: 15,
+			payment_ingresses: 30,
+			scoped_payment_ingresses: 30,
+			unscoped_payment_ingresses: 0,
 			payment_assets: 28,
 			receiving_methods: 0,
 			exchange_rates: initialExchangeRates.length,
@@ -278,7 +282,9 @@ describe("system installation", { timeout: 30_000 }, () => {
 
 		const rpcPolicy = await database
 			.prepare(
-				"SELECT rail_code, transport, priority, enabled FROM payment_ingresses WHERE type = 'rpc' ORDER BY rail_code, transport",
+				`SELECT rail_code, transport, priority, enabled FROM payment_ingresses
+				 WHERE type = 'rpc' AND merchant_id = 'default-merchant'
+				 AND environment_id = 'default-production' ORDER BY rail_code, transport`,
 			)
 			.all<{
 				rail_code: string;
@@ -301,11 +307,13 @@ describe("system installation", { timeout: 30_000 }, () => {
 			database,
 			20,
 		);
-		expect(healthTargets).toHaveLength(8);
+		expect(healthTargets).toHaveLength(16);
 		expect(healthTargets.every((target) => target.adapter !== null)).toBe(true);
 		const providerEndpoints = await database
 			.prepare(
-				"SELECT rail_code, endpoint, enabled FROM payment_ingresses WHERE type = 'provider' ORDER BY rail_code",
+				`SELECT rail_code, endpoint, enabled FROM payment_ingresses
+				 WHERE type = 'provider' AND merchant_id = 'default-merchant'
+				 AND environment_id = 'default-production' ORDER BY rail_code`,
 			)
 			.all<{ rail_code: string; endpoint: string; enabled: number }>();
 		expect(providerEndpoints.results).toEqual([
