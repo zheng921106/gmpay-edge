@@ -4,7 +4,7 @@ export const Route = createFileRoute("/admin/access/")({
 	loader: async ({ parentMatchPromise }) => {
 		const parentMatch = await parentMatchPromise;
 		const parentData = parentMatch.loaderData;
-		if (!parentData) throw redirect({ to: "/403" });
+		if (!parentData?.systemAccess) throw redirect({ to: "/403" });
 		const { systemAccess } = parentData;
 		throw redirect({
 			to:

@@ -25,10 +25,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
 import { Switch } from "#/components/ui/switch";
-import {
-	hasSystemPermission,
-	systemPermission,
-} from "#/features/access/system-rbac";
+import { hasMerchantPermission } from "#/features/access/merchant-rbac";
 import { apiKeyErrorMessage } from "#/features/api-keys/error-message";
 import {
 	createApiKeyFn,
@@ -56,19 +53,10 @@ const scopes = [
 ] as const;
 
 export function ApiKeysPage() {
-	const { permissions } = useNavigation();
-	const canCreate = hasSystemPermission(
-		permissions,
-		systemPermission("api_keys", "create"),
-	);
-	const canRotate = hasSystemPermission(
-		permissions,
-		systemPermission("api_keys", "update"),
-	);
-	const canRevoke = hasSystemPermission(
-		permissions,
-		systemPermission("api_keys", "delete"),
-	);
+	const { merchantPermissions = [] } = useNavigation();
+	const canCreate = hasMerchantPermission(merchantPermissions, "merchant", 2);
+	const canRotate = hasMerchantPermission(merchantPermissions, "merchant", 4);
+	const canRevoke = hasMerchantPermission(merchantPermissions, "merchant", 8);
 	const tableUrlState = useCurrentProTableUrlState({ searchColumnId: "name" });
 	const [refreshKey, setRefreshKey] = useState(0);
 	const [revealed, setRevealed] = useState<RevealedKey | null>(null);

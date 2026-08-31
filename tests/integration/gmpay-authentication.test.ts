@@ -31,7 +31,7 @@ describe("GMPay API authentication", () => {
 				.bind(JSON.stringify(pepper), now, now),
 			db
 				.prepare(
-					"INSERT INTO api_keys (id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('key', 'GMPay', 'gmp_merchant', ?, '[\"orders:create\"]', ?, ?)",
+					"INSERT INTO api_keys (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('key', 'default-merchant', 'default-production', 'GMPay', 'gmp_merchant', ?, '[\"orders:create\"]', ?, ?)",
 				)
 				.bind(await encryptSecret(secret, pepper), now, now),
 		]);

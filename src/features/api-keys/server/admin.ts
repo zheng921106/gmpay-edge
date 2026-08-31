@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { requireAdmin } from "#/features/access/server/require-admin";
-import { systemPermission } from "#/features/access/system-rbac";
+import {
+	requireMerchantAccess,
+	type MerchantPermission,
+} from "#/features/access/server/merchant-access";
 import { setApiKeyEnabled } from "#/features/api-keys/server/enabled";
 import { listApiKeys } from "#/features/api-keys/server/list";
 import { revokeApiKeyCredential } from "#/features/api-keys/server/revoke";
@@ -36,8 +38,11 @@ export const listApiKeysFn = createServerFn({ method: "GET" })
 		listKeysInput.parse(input),
 	)
 	.handler(async ({ data }) => {
-		const { db } = await adminContext(systemPermission("api_keys", "read"));
-		return listApiKeys(db, data);
+		const context = await merchantContext({
+			module: "merchant",
+			permissionMask: 1,
+		});
+		return listApiKeys(context.db, { ...data, ...context.access.context });
 	});
 
 export const createApiKeyFn = createServerFn({ method: "POST" })
@@ -45,9 +50,10 @@ export const createApiKeyFn = createServerFn({ method: "POST" })
 		createKeyInput.parse(input),
 	)
 	.handler(async ({ data }) => {
-		const { db, request, runtime, user } = await adminContext(
-			systemPermission("api_keys", "create"),
-		);
+		const { db, request, runtime, access } = await merchantContext({
+			module: "merchant",
+			permissionMask: 2,
+		});
 		if (!runtime.apiKeyPepper)
 			throw new DomainError(
 				"api_key_pepper_not_configured",
@@ -61,10 +67,12 @@ export const createApiKeyFn = createServerFn({ method: "POST" })
 		await db.batch([
 			db
 				.prepare(
-					"INSERT INTO api_keys (id, name, pid, secret_encrypted, scopes, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
+					"INSERT INTO api_keys (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
 				)
 				.bind(
 					id,
+					access.context.merchantId,
+					access.context.environmentId,
 					data.name,
 					pid,
 					await encryptSecret(secret, runtime.apiKeyPepper),
@@ -78,7 +86,7 @@ export const createApiKeyFn = createServerFn({ method: "POST" })
 				)
 				.bind(
 					crypto.randomUUID(),
-					user.id,
+					access.id,
 					id,
 					request.headers.get("x-request-id"),
 					request.headers.get("cf-connecting-ip"),
@@ -99,12 +107,14 @@ export const setApiKeyEnabledFn = createServerFn({ method: "POST" })
 		z.object({ id: z.uuid(), enabled: z.boolean() }).parse(input),
 	)
 	.handler(async ({ data }) => {
-		const { db, request, user } = await adminContext(
-			systemPermission("api_keys", "update"),
-		);
+		const { db, request, access } = await merchantContext({
+			module: "merchant",
+			permissionMask: 4,
+		});
 		return setApiKeyEnabled(db, {
 			...data,
-			actorUserId: user.id,
+			...access.context,
+			actorUserId: access.id,
 			requestId: request.headers.get("x-request-id"),
 			ipAddress: request.headers.get("cf-connecting-ip"),
 		});
@@ -113,12 +123,14 @@ export const setApiKeyEnabledFn = createServerFn({ method: "POST" })
 export const revokeApiKeyFn = createServerFn({ method: "POST" })
 	.validator((input: { id: string }) => z.object({ id: z.uuid() }).parse(input))
 	.handler(async ({ data }) => {
-		const { db, request, user } = await adminContext(
-			systemPermission("api_keys", "delete"),
-		);
+		const { db, request, access } = await merchantContext({
+			module: "merchant",
+			permissionMask: 8,
+		});
 		return revokeApiKeyCredential(db, {
 			id: data.id,
-			actorUserId: user.id,
+			...access.context,
+			actorUserId: access.id,
 			requestId: request.headers.get("x-request-id"),
 			ipAddress: request.headers.get("cf-connecting-ip"),
 		});
@@ -127,7 +139,10 @@ export const revokeApiKeyFn = createServerFn({ method: "POST" })
 export const rotateApiKeyFn = createServerFn({ method: "POST" })
 	.validator((input: { id: string }) => z.object({ id: z.uuid() }).parse(input))
 	.handler(async ({ data }) => {
-		const context = await adminContext(systemPermission("api_keys", "update"));
+		const context = await merchantContext({
+			module: "merchant",
+			permissionMask: 4,
+		});
 		if (!context.runtime.apiKeyPepper)
 			throw new DomainError(
 				"api_key_pepper_not_configured",
@@ -136,6 +151,7 @@ export const rotateApiKeyFn = createServerFn({ method: "POST" })
 			);
 		const rotated = await rotateApiKeyCredential(context.db, {
 			id: data.id,
+			...context.access.context,
 			pepper: context.runtime.apiKeyPepper,
 		});
 		await context.db
@@ -144,7 +160,7 @@ export const rotateApiKeyFn = createServerFn({ method: "POST" })
 			)
 			.bind(
 				crypto.randomUUID(),
-				context.user.id,
+				context.access.id,
 				data.id,
 				context.request.headers.get("x-request-id"),
 				context.request.headers.get("cf-connecting-ip"),
@@ -155,9 +171,9 @@ export const rotateApiKeyFn = createServerFn({ method: "POST" })
 		return { id: rotated.id, pid: rotated.pid, secret: rotated.secret };
 	});
 
-async function adminContext(permission: ReturnType<typeof systemPermission>) {
+async function merchantContext(permission: MerchantPermission) {
 	const request = getRequest();
-	const user = await requireAdmin(request, permission);
+	const access = await requireMerchantAccess(request, permission);
 	const env = getCloudflareEnv(request);
 	if (!env.DB) throw new Error("D1 binding DB is unavailable");
 	const runtime = await loadRequestRuntimeConfig(
@@ -165,5 +181,5 @@ async function adminContext(permission: ReturnType<typeof systemPermission>) {
 		env.DB,
 		new URL(request.url).origin,
 	);
-	return { db: env.DB, env, request, runtime, user };
+	return { db: env.DB, request, runtime, access };
 }

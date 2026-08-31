@@ -1,12 +1,22 @@
 import { parseApiScopes } from "#/features/api-keys/scopes";
 
+export type ApiKeyScope = {
+	merchantId: string;
+	environmentId: string;
+};
+
 export async function listApiKeys(
 	db: D1Database,
-	data: { pageIndex: number; pageSize: number; search: string },
+	data: ApiKeyScope & { pageIndex: number; pageSize: number; search: string },
 ) {
-	const where = data.search ? "WHERE k.name LIKE ? OR k.pid LIKE ?" : "";
+	const conditions = ["k.merchant_id = ?", "k.environment_id = ?"];
 	const pattern = `%${data.search}%`;
-	const bindings = data.search ? [pattern, pattern] : [];
+	const bindings: string[] = [data.merchantId, data.environmentId];
+	if (data.search) {
+		conditions.push("(k.name LIKE ? OR k.pid LIKE ?)");
+		bindings.push(pattern, pattern);
+	}
+	const where = `WHERE ${conditions.join(" AND ")}`;
 	const [countResult, rowsResult] = await db.batch([
 		db
 			.prepare(`SELECT COUNT(*) AS count FROM api_keys k ${where}`)

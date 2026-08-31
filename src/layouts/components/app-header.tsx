@@ -1,5 +1,6 @@
 import { Header } from "#/layouts/components/header";
 import { LocaleSwitch } from "#/layouts/components/locale-switch";
+import { MerchantContextSelect } from "#/layouts/components/merchant-context-select";
 import { ProfileDropdown } from "#/layouts/components/profile-dropdown";
 import { Search } from "#/layouts/components/search";
 import { ThemeSwitch } from "#/layouts/components/theme-switch";
@@ -21,6 +22,7 @@ export function AppHeader({ fixed = true, topNav }: AppHeaderProps) {
 			{topNav ? <TopNav links={topNav} /> : <Search />}
 			<div className="ms-auto flex items-center space-x-4">
 				{topNav ? <Search /> : null}
+				<MerchantContextSelect />
 				<LocaleSwitch />
 				<ThemeSwitch />
 				<ProfileDropdown />

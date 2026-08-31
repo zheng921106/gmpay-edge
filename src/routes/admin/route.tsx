@@ -2,6 +2,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getAdminBootstrapFn } from "#/features/auth/server/session";
 import {
 	canAccessAdminPath,
+	canAccessMerchantPath,
+	merchantSidebarData,
 	systemSidebarData,
 } from "#/layouts/components/data/sidebar-data";
 import { DashboardLayout } from "#/layouts/dashboard";
@@ -22,7 +24,20 @@ export const Route = createFileRoute("/admin")({
 		}
 
 		const systemAccess = bootstrap.access;
-		if (!systemAccess) {
+		if (systemAccess) {
+			if (systemAccess.enabled === false) throw redirect({ to: "/403" });
+			if (
+				location.pathname !== "/admin" &&
+				location.pathname !== "/admin/" &&
+				!canAccessAdminPath(location.pathname, systemAccess.permissions)
+			) {
+				throw redirect({ to: "/403" });
+			}
+			return { systemAccess, user: systemAccess };
+		}
+
+		const merchantAccess = bootstrap.merchant;
+		if (!merchantAccess) {
 			throw redirect({
 				to: "/sign-in",
 				search: {
@@ -31,26 +46,34 @@ export const Route = createFileRoute("/admin")({
 			});
 		}
 
-		const user = systemAccess;
-		if (user.enabled === false) throw redirect({ to: "/403" });
 		if (
 			location.pathname !== "/admin" &&
 			location.pathname !== "/admin/" &&
-			!canAccessAdminPath(location.pathname, systemAccess.permissions)
+			!canAccessMerchantPath(location.pathname, merchantAccess.permissions)
 		) {
 			throw redirect({ to: "/403" });
 		}
-		return { systemAccess, user };
+		return {
+			systemAccess: null,
+			merchantAccess,
+			user: merchantAccess.user,
+		};
 	},
 	component: AdminLayoutRoute,
 });
 
 function AdminLayoutRoute() {
-	const { systemAccess, user } = Route.useLoaderData();
+	const { systemAccess, merchantAccess, user } = Route.useLoaderData();
 	return (
 		<DashboardLayout
-			navigation={systemSidebarData(systemAccess.permissions)}
-			permissions={systemAccess.permissions}
+			navigation={
+				systemAccess
+					? systemSidebarData(systemAccess.permissions)
+					: merchantSidebarData(merchantAccess?.permissions ?? [])
+			}
+			permissions={systemAccess?.permissions ?? []}
+			merchantPermissions={merchantAccess?.permissions ?? []}
+			merchantContext={merchantAccess?.context}
 			user={user}
 		/>
 	);

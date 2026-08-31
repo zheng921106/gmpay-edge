@@ -12,6 +12,7 @@ import { useAuthAnimation } from "#/features/auth/components/auth-animation-cont
 import { signInErrorMessage } from "#/features/auth/error-message";
 import { cn } from "#/lib/utils";
 import { m } from "#/paraglide/messages";
+import { selectDefaultMerchantContextFn } from "#/server/merchant-context";
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
 	redirectTo?: string;
@@ -50,26 +51,29 @@ export function UserAuthForm({
 			window.sessionStorage.setItem("gmpay.post_auth_redirect", redirectTo);
 		}
 
-		toast.promise(
-			authClient.signIn.email({
+		const request = authClient.signIn
+			.email({
 				email: data.email,
 				password: data.password,
 				callbackURL: redirectTo,
-			}),
-			{
-				loading: m.auth_signingIn(),
-				success: (result) => {
-					setIsLoading(false);
-					if (result.error) throw result.error;
-					navigate({ to: redirectTo, replace: true });
-					return m.auth_welcomeBack({ email: data.email });
-				},
-				error: (error) => {
-					setIsLoading(false);
-					return signInErrorMessage(error);
-				},
+			})
+			.then(async (result) => {
+				if (result.error) throw result.error;
+				await selectDefaultMerchantContextFn({ data: undefined });
+				await navigate({ to: redirectTo, replace: true });
+				return result;
+			});
+		toast.promise(request, {
+			loading: m.auth_signingIn(),
+			success: () => {
+				setIsLoading(false);
+				return m.auth_welcomeBack({ email: data.email });
 			},
-		);
+			error: (error) => {
+				setIsLoading(false);
+				return signInErrorMessage(error);
+			},
+		});
 	}
 
 	return (

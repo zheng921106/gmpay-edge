@@ -33,8 +33,9 @@ async function createOrderAwaitingReceivingMethod(
 			`INSERT OR IGNORE INTO orders
 				 (id, external_order_id, status, amount_minor, currency, currency_decimals,
 				  payment_asset_id, received_amount_units,
-				  description, return_url, notify_url, api_key_id, api_protocol, metadata, expires_at, version, created_at, updated_at)
-				 VALUES (?, ?, 'pending', ?, ?, ?, NULL, '0', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+				  description, return_url, notify_url, merchant_id, environment_id,
+				  api_key_id, api_protocol, metadata, expires_at, version, created_at, updated_at)
+				 VALUES (?, ?, 'pending', ?, ?, ?, NULL, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
 		)
 		.bind(
 			id,
@@ -45,6 +46,8 @@ async function createOrderAwaitingReceivingMethod(
 			input.description ?? null,
 			input.returnUrl ?? null,
 			input.notifyUrl ?? null,
+			context.merchantId ?? null,
+			context.environmentId ?? null,
 			context.apiKeyId ?? null,
 			context.apiProtocol ?? null,
 			input.metadata ? JSON.stringify(input.metadata) : null,
@@ -56,9 +59,16 @@ async function createOrderAwaitingReceivingMethod(
 	if (result.meta.changes !== 1) {
 		const existing = await db
 			.prepare(
-				"SELECT 1 AS value FROM orders WHERE external_order_id = ? AND api_key_id IS ? LIMIT 1",
+				`SELECT 1 AS value FROM orders
+				 WHERE external_order_id = ? AND api_key_id IS ?
+				   AND merchant_id IS ? AND environment_id IS ? LIMIT 1`,
 			)
-			.bind(input.externalOrderId, context.apiKeyId ?? null)
+			.bind(
+				input.externalOrderId,
+				context.apiKeyId ?? null,
+				context.merchantId ?? null,
+				context.environmentId ?? null,
+			)
 			.first<{ value: number }>();
 		if (existing)
 			throw new OrderServiceError(
@@ -101,6 +111,7 @@ async function createOrderRecord(
 	requestUrl: string,
 	context: OrderCreationContext = {},
 ): Promise<ApiOrder> {
+	await assertExternalOrderAvailable(db, input.externalOrderId, context);
 	if (input.receivingMethodId)
 		return createOrderFromReceivingMethod(db, input, requestUrl, context);
 	if (!(input.paymentAsset && input.paymentNetwork))
@@ -110,11 +121,16 @@ async function createOrderRecord(
 			`SELECT rm.id FROM receiving_methods rm
 			 JOIN receiving_method_assets link ON link.receiving_method_id = rm.id
 			 JOIN payment_assets pa ON pa.id = link.payment_asset_id
-			 WHERE pa.code = ?
-			 AND pa.rail_code = ?
+			 WHERE pa.code = ? AND pa.rail_code = ?
+			 AND rm.merchant_id IS ? AND rm.environment_id IS ?
 			 ORDER BY rm.sort_order, rm.created_at, rm.id`,
 		)
-		.bind(input.paymentAsset, input.paymentNetwork)
+		.bind(
+			input.paymentAsset,
+			input.paymentNetwork,
+			context.merchantId ?? null,
+			context.environmentId ?? null,
+		)
 		.all<{ id: string }>();
 	for (const method of methods.results) {
 		const readiness = await checkReceivingMethodReadiness(db, method.id);
@@ -137,6 +153,32 @@ async function createOrderRecord(
 		"No matching receiving method is currently ready",
 		422,
 	);
+}
+
+async function assertExternalOrderAvailable(
+	db: D1Database,
+	externalOrderId: string,
+	context: OrderCreationContext,
+) {
+	const existing = await db
+		.prepare(
+			`SELECT 1 AS value FROM orders
+			 WHERE external_order_id = ? AND api_key_id IS ?
+			   AND merchant_id IS ? AND environment_id IS ? LIMIT 1`,
+		)
+		.bind(
+			externalOrderId,
+			context.apiKeyId ?? null,
+			context.merchantId ?? null,
+			context.environmentId ?? null,
+		)
+		.first<{ value: number }>();
+	if (existing)
+		throw new OrderServiceError(
+			"external_order_exists",
+			"External order ID already exists",
+			409,
+		);
 }
 
 async function createOrderFromReceivingMethod(
@@ -163,9 +205,10 @@ async function createOrderFromReceivingMethod(
 			 FROM receiving_methods rm
 			 JOIN receiving_method_assets link ON link.receiving_method_id = rm.id
 			 JOIN payment_assets pa ON pa.id = link.payment_asset_id
-			 WHERE rm.id = ? ORDER BY pa.code`,
+			 WHERE rm.id = ? AND rm.merchant_id IS ? AND rm.environment_id IS ?
+			 ORDER BY pa.code`,
 		)
-		.bind(methodId)
+		.bind(methodId, context.merchantId ?? null, context.environmentId ?? null)
 		.all<{
 			id: string;
 			target_value: string;
@@ -241,6 +284,8 @@ async function createOrderFromReceivingMethod(
 				? expiresAt
 				: expiresAt + settings.reorgMonitorMs,
 			immediateReleaseMode: settings.immediateReleaseMode,
+			merchantId: context.merchantId,
+			environmentId: context.environmentId,
 			now,
 			...(exchangeRateQuote
 				? {
@@ -261,6 +306,10 @@ async function createOrderFromReceivingMethod(
 				...(input.description ? { description: input.description } : {}),
 				...(input.returnUrl ? { returnUrl: input.returnUrl } : {}),
 				...(input.notifyUrl ? { notifyUrl: input.notifyUrl } : {}),
+				...(context.merchantId ? { merchantId: context.merchantId } : {}),
+				...(context.environmentId
+					? { environmentId: context.environmentId }
+					: {}),
 				...(context.apiKeyId ? { apiKeyId: context.apiKeyId } : {}),
 				...(context.apiProtocol ? { apiProtocol: context.apiProtocol } : {}),
 				...(input.metadata ? { metadata: input.metadata } : {}),
@@ -317,6 +366,9 @@ function resolveOrderExpiryMs(
 export interface OrderCreationContext {
 	apiKeyId?: string;
 	apiProtocol?: "gmpay" | "epay";
+	merchantId?: string;
+	environmentId?: string;
+	environment?: "sandbox" | "production";
 }
 
 async function quotePaymentAmount(

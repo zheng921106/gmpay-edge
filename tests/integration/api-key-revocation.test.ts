@@ -8,6 +8,10 @@ describe("API key revocation", () => {
 	let database: D1Database;
 	const userId = "00000000-0000-4000-8000-000000000001";
 	const apiKeyId = "00000000-0000-4000-8000-000000000002";
+	const scope = {
+		merchantId: "default-merchant",
+		environmentId: "default-production",
+	};
 
 	beforeAll(async () => {
 		miniflare = new Miniflare({
@@ -26,10 +30,10 @@ describe("API key revocation", () => {
 			database
 				.prepare(
 					`INSERT INTO api_keys
-					 (id, name, pid, secret_encrypted, scopes, created_at, updated_at)
-					 VALUES (?, 'Checkout', 'gmp_revoke_test', 'encrypted', '["orders:create"]', 1, 1)`,
+					 (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at)
+					 VALUES (?, ?, ?, 'Checkout', 'gmp_revoke_test', 'encrypted', '["orders:create"]', 1, 1)`,
 				)
-				.bind(apiKeyId),
+				.bind(apiKeyId, scope.merchantId, scope.environmentId),
 		]);
 	});
 
@@ -40,6 +44,7 @@ describe("API key revocation", () => {
 		await expect(
 			revokeApiKeyCredential(database, {
 				id: apiKeyId,
+				...scope,
 				actorUserId: userId,
 				requestId: "request-revoke-a",
 				ipAddress: "203.0.113.90",
@@ -64,6 +69,7 @@ describe("API key revocation", () => {
 		await expect(
 			revokeApiKeyCredential(database, {
 				id: apiKeyId,
+				...scope,
 				actorUserId: userId,
 				now: 1_800_000_000_000,
 			}),
@@ -71,6 +77,7 @@ describe("API key revocation", () => {
 		await expect(
 			revokeApiKeyCredential(database, {
 				id: "00000000-0000-4000-8000-000000000099",
+				...scope,
 				actorUserId: userId,
 				now: 1_800_000_000_002,
 			}),
@@ -88,15 +95,16 @@ describe("API key revocation", () => {
 		await database
 			.prepare(
 				`INSERT INTO api_keys
-				 (id, name, pid, secret_encrypted, scopes, created_at, updated_at)
-				 VALUES (?, 'Concurrent', 'gmp_revoke_concurrent', 'encrypted', '["orders:create"]', 1, 1)`,
+					 (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at)
+					 VALUES (?, ?, ?, 'Concurrent', 'gmp_revoke_concurrent', 'encrypted', '["orders:create"]', 1, 1)`,
 			)
-			.bind(id)
+			.bind(id, scope.merchantId, scope.environmentId)
 			.run();
 		const results = await Promise.allSettled(
 			["request-concurrent-a", "request-concurrent-b"].map((requestId) =>
 				revokeApiKeyCredential(database, {
 					id,
+					...scope,
 					actorUserId: userId,
 					requestId,
 					now: 1_800_000_000_010,

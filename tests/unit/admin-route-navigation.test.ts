@@ -6,6 +6,8 @@ const auth = vi.hoisted(() => ({ getAdminBootstrapFn: vi.fn() }));
 vi.mock("#/features/auth/server/session", () => auth);
 vi.mock("#/layouts/components/data/sidebar-data", () => ({
 	canAccessAdminPath: () => true,
+	canAccessMerchantPath: () => true,
+	merchantSidebarData: () => ({ navGroups: [] }),
 	systemSidebarData: () => ({ navGroups: [] }),
 }));
 vi.mock("#/layouts/dashboard", () => ({ DashboardLayout: () => null }));
@@ -52,5 +54,41 @@ describe("admin route navigation", () => {
 			const source = await readFile(new URL(file, import.meta.url), "utf8");
 			expect(source).not.toContain("beforeLoad:");
 		}
+	});
+
+	it("admits a scoped merchant workspace without platform grants", async () => {
+		const merchantAccess = {
+			user: {
+				id: "merchant-user",
+				name: "Merchant User",
+				email: "merchant@example.com",
+				enabled: true,
+			},
+			context: {
+				merchantId: "merchant-a",
+				environmentId: "environment-production",
+				environment: "production",
+			},
+			permissions: [{ module: "merchant", permissionMask: 15 }],
+		};
+		auth.getAdminBootstrapFn.mockResolvedValue({
+			installed: true,
+			access: null,
+			merchant: merchantAccess,
+		});
+		const { Route } = await import("#/routes/admin/route");
+		const loader = Route.options.loader as (input: {
+			location: { href: string; pathname: string };
+		}) => Promise<unknown>;
+
+		await expect(
+			loader({
+				location: { href: "/admin/api-keys", pathname: "/admin/api-keys" },
+			}),
+		).resolves.toMatchObject({
+			systemAccess: null,
+			merchantAccess,
+			user: merchantAccess.user,
+		});
 	});
 });

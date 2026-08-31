@@ -37,7 +37,7 @@ describe("EPay compatibility HTTP handler", () => {
 				.bind(JSON.stringify(pepper), now, now),
 			db
 				.prepare(
-					"INSERT INTO api_keys (id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('key', 'EPay', ?, ?, '[\"orders:create\",\"orders:read\"]', ?, ?)",
+					"INSERT INTO api_keys (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('key', 'default-merchant', 'default-production', 'EPay', ?, ?, '[\"orders:create\",\"orders:read\"]', ?, ?)",
 				)
 				.bind(pid, await encryptSecret(secret, pepper), now, now),
 		]);
@@ -107,8 +107,8 @@ describe("EPay compatibility HTTP handler", () => {
 		} as Env);
 		expect(response.status).toBe(200);
 		expect(counters).toMatchObject({
-			d1Prepare: 6,
-			d1StatementFirst: 2,
+			d1Prepare: 7,
+			d1StatementFirst: 3,
 			d1StatementAll: 2,
 			d1StatementRun: 2,
 			d1Batch: 0,

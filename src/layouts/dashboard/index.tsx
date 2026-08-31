@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider } from "#/components/ui/sidebar";
 import { LayoutProvider } from "#/context/layout-provider";
 import { SearchProvider } from "#/context/search-provider";
 import type { SystemPermissionGrant } from "#/features/access/system-rbac";
+import type { MerchantPermissionGrant } from "#/features/access/merchant-rbac";
 import { AppHeader } from "#/layouts/components/app-header";
 import { AppSidebar } from "#/layouts/components/app-sidebar";
 import { CommandMenu } from "#/layouts/components/command-menu";
@@ -19,6 +20,12 @@ interface DashboardLayoutProps {
 	user?: AuthUser;
 	navigation?: SidebarData;
 	permissions?: readonly SystemPermissionGrant[];
+	merchantPermissions?: readonly MerchantPermissionGrant[];
+	merchantContext?: {
+		merchantId: string;
+		environmentId: string;
+		environment: "sandbox" | "production";
+	};
 	homeHref?: string;
 }
 
@@ -27,6 +34,8 @@ export function DashboardLayout({
 	user,
 	navigation,
 	permissions = [],
+	merchantPermissions = [],
+	merchantContext,
 	homeHref,
 }: DashboardLayoutProps) {
 	useEffect(() => {
@@ -37,7 +46,12 @@ export function DashboardLayout({
 
 	const safeNavigation = navigation ?? { navGroups: [] };
 	return (
-		<NavigationProvider navigation={safeNavigation} permissions={permissions}>
+		<NavigationProvider
+			navigation={safeNavigation}
+			permissions={permissions}
+			merchantPermissions={merchantPermissions}
+			merchantContext={merchantContext}
+		>
 			<SearchProvider>
 				<CommandMenu />
 				<LayoutProvider>

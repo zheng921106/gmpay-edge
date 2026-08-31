@@ -10,6 +10,10 @@ import { applyMigrations } from "./migrations";
 describe("API key pagination", () => {
 	let miniflare: Miniflare;
 	let db: D1Database;
+	const scope = {
+		merchantId: "default-merchant",
+		environmentId: "default-production",
+	};
 
 	beforeAll(async () => {
 		miniflare = new Miniflare({
@@ -24,11 +28,13 @@ describe("API key pagination", () => {
 				db
 					.prepare(
 						`INSERT INTO api_keys
-						 (id, name, pid, secret_encrypted, scopes, created_at, updated_at)
-						 VALUES (?, ?, ?, 'encrypted', '["orders:read"]', ?, ?)`,
+						 (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at)
+						 VALUES (?, ?, ?, ?, ?, 'encrypted', '["orders:read"]', ?, ?)`,
 					)
 					.bind(
 						`key-${index.toString().padStart(2, "0")}`,
+						scope.merchantId,
+						scope.environmentId,
 						index === 7 ? "Searchable production key" : `Key ${index}`,
 						`pid-${index}`,
 						index,
@@ -42,11 +48,13 @@ describe("API key pagination", () => {
 
 	it("returns stable server pages and filtered totals", async () => {
 		const first = await listApiKeys(db, {
+			...scope,
 			pageIndex: 0,
 			pageSize: 10,
 			search: "",
 		});
 		const second = await listApiKeys(db, {
+			...scope,
 			pageIndex: 1,
 			pageSize: 10,
 			search: "",
@@ -57,6 +65,7 @@ describe("API key pagination", () => {
 		expect(first.data.at(-1)?.id).not.toBe(second.data[0]?.id);
 		expect(
 			await listApiKeys(db, {
+				...scope,
 				pageIndex: 0,
 				pageSize: 10,
 				search: "production",
@@ -67,6 +76,7 @@ describe("API key pagination", () => {
 	it("keeps the exact total for an empty page in one D1 batch", async () => {
 		const counters = createDatastoreCounters();
 		const result = await listApiKeys(instrumentD1(db, counters), {
+			...scope,
 			pageIndex: 9,
 			pageSize: 10,
 			search: "",
@@ -86,11 +96,12 @@ describe("API key pagination", () => {
 				`EXPLAIN QUERY PLAN SELECT k.id, k.name, k.pid, k.scopes,
 				 k.last_used_at, k.expires_at, k.revoked_at, k.created_at
 				 FROM api_keys k
+				 WHERE k.merchant_id = 'default-merchant' AND k.environment_id = 'default-production'
 				 ORDER BY created_at DESC, id DESC LIMIT 10 OFFSET 10`,
 			)
 			.all<{ detail: string }>();
 		expect(plan.results.map((row) => row.detail).join(" ")).toContain(
-			"api_keys_created_idx",
+			"api_keys_merchant_environment_idx",
 		);
 		expect(plan.results.map((row) => row.detail).join(" ")).not.toContain(
 			"USE TEMP B-TREE",
@@ -105,6 +116,7 @@ describe("API key pagination", () => {
 		try {
 			await expect(
 				listApiKeys(db, {
+					...scope,
 					pageIndex: 0,
 					pageSize: 10,
 					search: "production",

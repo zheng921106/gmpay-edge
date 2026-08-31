@@ -8,6 +8,10 @@ describe("API key enabled state", () => {
 	let database: D1Database;
 	const userId = "00000000-0000-4000-8000-000000000001";
 	const apiKeyId = "00000000-0000-4000-8000-000000000002";
+	const scope = {
+		merchantId: "default-merchant",
+		environmentId: "default-production",
+	};
 
 	beforeAll(async () => {
 		miniflare = new Miniflare({
@@ -26,10 +30,10 @@ describe("API key enabled state", () => {
 			database
 				.prepare(
 					`INSERT INTO api_keys
-					 (id, name, pid, secret_encrypted, scopes, created_at, updated_at)
-					 VALUES (?, 'Checkout', 'gmp_enabled_test', 'encrypted', '["orders:create"]', 1, 1)`,
+					 (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at)
+					 VALUES (?, ?, ?, 'Checkout', 'gmp_enabled_test', 'encrypted', '["orders:create"]', 1, 1)`,
 				)
-				.bind(apiKeyId),
+				.bind(apiKeyId, scope.merchantId, scope.environmentId),
 		]);
 	});
 
@@ -48,6 +52,7 @@ describe("API key enabled state", () => {
 		await expect(
 			setApiKeyEnabled(database, {
 				id: apiKeyId,
+				...scope,
 				enabled: false,
 				actorUserId: userId,
 				requestId: "request-disable",
@@ -58,6 +63,7 @@ describe("API key enabled state", () => {
 		await expect(
 			setApiKeyEnabled(database, {
 				id: apiKeyId,
+				...scope,
 				enabled: false,
 				actorUserId: userId,
 				now: disabledAt + 1,
@@ -66,6 +72,7 @@ describe("API key enabled state", () => {
 		await expect(
 			setApiKeyEnabled(database, {
 				id: apiKeyId,
+				...scope,
 				enabled: true,
 				actorUserId: userId,
 				now: disabledAt + 2,
@@ -92,6 +99,7 @@ describe("API key enabled state", () => {
 		await expect(
 			setApiKeyEnabled(database, {
 				id: apiKeyId,
+				...scope,
 				enabled: false,
 				actorUserId: userId,
 			}),
@@ -99,6 +107,7 @@ describe("API key enabled state", () => {
 		await expect(
 			setApiKeyEnabled(database, {
 				id: "00000000-0000-4000-8000-000000000099",
+				...scope,
 				enabled: false,
 				actorUserId: userId,
 			}),

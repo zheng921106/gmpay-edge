@@ -14,7 +14,11 @@ export const Route = createFileRoute("/admin/")({
 		const parentMatch = await parentMatchPromise;
 		const parentData = parentMatch.loaderData;
 		if (!parentData) throw redirect({ to: "/403" });
-		const { systemAccess } = parentData;
+		const { systemAccess, merchantAccess } = parentData;
+		if (merchantAccess) {
+			throw redirect({ to: "/admin/api-keys" });
+		}
+		if (!systemAccess) throw redirect({ to: "/403" });
 		if (
 			hasSystemPermission(
 				systemAccess.permissions,

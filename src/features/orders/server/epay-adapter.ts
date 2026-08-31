@@ -169,6 +169,9 @@ export async function handleEpayCreateRequest(
 			{
 				apiKeyId: principal.apiKeyId,
 				apiProtocol: "epay",
+				merchantId: principal.merchantId,
+				environmentId: principal.environmentId,
+				environment: principal.environment,
 			},
 		);
 		return epayCreateResponse(order, parsed.data, requestId, responseMode);
@@ -230,10 +233,17 @@ export async function handleEpayQueryRequest(
 		const order = await findOrder(
 			env.DB,
 			parsed.data.trade_no
-				? { id: parsed.data.trade_no, apiKeyId: principal.apiKeyId }
+				? {
+						id: parsed.data.trade_no,
+						apiKeyId: principal.apiKeyId,
+						merchantId: principal.merchantId,
+						environmentId: principal.environmentId,
+					}
 				: {
 						externalOrderId: parsed.data.out_trade_no as string,
 						apiKeyId: principal.apiKeyId,
+						merchantId: principal.merchantId,
+						environmentId: principal.environmentId,
 					},
 			request.url,
 		);

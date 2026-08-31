@@ -1,8 +1,9 @@
 import { DomainError } from "#/lib/domain-error";
+import type { ApiKeyScope } from "#/features/api-keys/server/list";
 
 export async function setApiKeyEnabled(
 	database: D1Database,
-	input: {
+	input: ApiKeyScope & {
 		id: string;
 		enabled: boolean;
 		actorUserId: string;
@@ -18,9 +19,17 @@ export async function setApiKeyEnabled(
 			.prepare(
 				`UPDATE api_keys
 				 SET enabled = ?, updated_at = ?
-				 WHERE id = ? AND revoked_at IS NULL AND enabled != ?`,
+				 WHERE id = ? AND merchant_id = ? AND environment_id = ?
+				   AND revoked_at IS NULL AND enabled != ?`,
 			)
-			.bind(enabled, now, input.id, enabled),
+			.bind(
+				enabled,
+				now,
+				input.id,
+				input.merchantId,
+				input.environmentId,
+				enabled,
+			),
 		database
 			.prepare(
 				`INSERT INTO audit_logs
@@ -46,8 +55,10 @@ export async function setApiKeyEnabled(
 	}
 
 	const key = await database
-		.prepare("SELECT enabled, revoked_at FROM api_keys WHERE id = ? LIMIT 1")
-		.bind(input.id)
+		.prepare(
+			"SELECT enabled, revoked_at FROM api_keys WHERE id = ? AND merchant_id = ? AND environment_id = ? LIMIT 1",
+		)
+		.bind(input.id, input.merchantId, input.environmentId)
 		.first<{ enabled: number; revoked_at: number | null }>();
 	if (!key)
 		throw new DomainError("api_key_not_found", 404, "API key not found");

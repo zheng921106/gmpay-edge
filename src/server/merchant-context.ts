@@ -32,6 +32,19 @@ export type MerchantSessionAccess = {
 	root: boolean;
 };
 
+export type MerchantContextOption = MerchantEnvironmentContext & {
+	merchantName: string;
+	merchantSlug: string;
+};
+
+const merchantContextOptionSchema = z.object({
+	merchantId: z.string().min(1),
+	environmentId: z.string().min(1),
+	environment: z.enum(["sandbox", "production"]),
+	merchantName: z.string().min(1),
+	merchantSlug: z.string().min(1),
+});
+
 export async function signMerchantContext(
 	context: MerchantEnvironmentContext,
 	secret: string,
@@ -207,6 +220,78 @@ export const selectMerchantContextFn = createServerFn({ method: "POST" })
 		setResponseHeader("set-cookie", await setMerchantContext(request, context));
 		return context;
 	});
+
+export const selectDefaultMerchantContextFn = createServerFn({
+	method: "POST",
+}).handler(async () => {
+	const request = getRequest();
+	const env = getCloudflareEnv(request);
+	if (!env.DB) throw new Error("D1 binding DB is unavailable");
+	const access = await loadMerchantSession(request);
+	const context = await findDefaultMerchantContext(env.DB, access.user.id);
+	if (!context) throw new AccessDeniedError(403);
+	setResponseHeader("set-cookie", await setMerchantContext(request, context));
+	return context;
+});
+
+export const listMerchantContextsFn = createServerFn({ method: "GET" }).handler(
+	async () => {
+		const request = getRequest();
+		const env = getCloudflareEnv(request);
+		if (!env.DB) throw new Error("D1 binding DB is unavailable");
+		return listMerchantContexts(env.DB, await loadMerchantSession(request));
+	},
+);
+
+export async function listMerchantContexts(
+	db: RuntimeDatabase,
+	access: MerchantSessionAccess,
+): Promise<MerchantContextOption[]> {
+	const statement = access.root
+		? db.prepare(
+				`SELECT m.id AS merchantId, m.name AS merchantName, m.slug AS merchantSlug,
+				 me.id AS environmentId, me.code AS environment
+				 FROM merchants m
+				 JOIN merchant_environments me ON me.merchant_id = m.id
+				 WHERE m.status = 'active' AND me.status = 'active'
+				 ORDER BY m.name COLLATE NOCASE, CASE me.code WHEN 'production' THEN 0 ELSE 1 END, me.id`,
+			)
+		: db
+				.prepare(
+					`SELECT m.id AS merchantId, m.name AS merchantName, m.slug AS merchantSlug,
+					 me.id AS environmentId, me.code AS environment
+					 FROM merchant_memberships mm
+					 JOIN merchants m ON m.id = mm.merchant_id
+					 JOIN merchant_environments me ON me.merchant_id = m.id
+					 WHERE mm.user_id = ? AND mm.status = 'active' AND m.status = 'active'
+					   AND me.status = 'active'
+					 ORDER BY m.name COLLATE NOCASE,
+					          CASE me.code WHEN 'production' THEN 0 ELSE 1 END, me.id`,
+				)
+				.bind(access.user.id);
+	const rows = await statement.all<MerchantContextOption>();
+	return z.array(merchantContextOptionSchema).parse(rows.results);
+}
+
+export async function findDefaultMerchantContext(
+	db: RuntimeDatabase,
+	userId: string,
+): Promise<MerchantEnvironmentContext | null> {
+	const context = await db
+		.prepare(
+			`SELECT me.merchant_id AS merchantId, me.id AS environmentId, me.code AS environment
+			 FROM merchant_memberships mm
+			 JOIN merchants m ON m.id = mm.merchant_id
+			 JOIN merchant_environments me ON me.merchant_id = mm.merchant_id
+			 WHERE mm.user_id = ? AND mm.status = 'active' AND m.status = 'active'
+			   AND me.status = 'active'
+			 ORDER BY CASE me.code WHEN 'production' THEN 0 ELSE 1 END,
+			          mm.created_at ASC, me.id ASC LIMIT 1`,
+		)
+		.bind(userId)
+		.first<MerchantEnvironmentContext>();
+	return context ?? null;
+}
 
 function readCookie(header: string | null, name: string) {
 	return header

@@ -23,6 +23,10 @@ import {
 	type SystemPermissionGrant,
 	systemPermission,
 } from "#/features/access/system-rbac";
+import {
+	hasMerchantPermission,
+	type MerchantPermissionGrant,
+} from "#/features/access/merchant-rbac";
 import { m } from "#/paraglide/messages";
 import type { SidebarData } from "../types";
 
@@ -495,6 +499,41 @@ export function systemSidebarData(
 	return {
 		navGroups,
 	};
+}
+
+export function merchantSidebarData(
+	permissions: readonly MerchantPermissionGrant[],
+): SidebarData {
+	if (!hasMerchantPermission(permissions, "merchant", 1))
+		return { navGroups: [] };
+	return {
+		navGroups: [
+			{
+				id: "merchant",
+				title: m.nav_group_open_integrations(),
+				items: [
+					{
+						id: "api-keys",
+						title: m.api_keys_title(),
+						url: "/admin/api-keys",
+						icon: KeyRound,
+					},
+				],
+			},
+		],
+	};
+}
+
+export function canAccessMerchantPath(
+	pathname: string,
+	permissions: readonly MerchantPermissionGrant[],
+) {
+	const normalized =
+		pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+	return (
+		hasMerchantPermission(permissions, "merchant", 1) &&
+		(normalized === "/admin" || normalized === "/admin/api-keys")
+	);
 }
 
 export function permissionForAdminPath(

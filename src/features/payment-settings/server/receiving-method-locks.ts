@@ -6,6 +6,8 @@ export type PaymentAllocationInput = {
 	orderId: string;
 	receivingMethodId: string;
 	paymentMethodId: string;
+	merchantId?: string;
+	environmentId?: string;
 	expectedAmountUnits: string;
 	orderAmountUsdMinor?: string;
 	expiresAt: number;
@@ -29,6 +31,8 @@ export type PaymentAllocationInput = {
 		notifyUrl?: string;
 		apiKeyId?: string;
 		apiProtocol?: "gmpay" | "epay";
+		merchantId?: string;
+		environmentId?: string;
 		metadata?: Record<string, string>;
 	};
 	existingOrder?: {
@@ -132,11 +136,20 @@ export async function allocateReceivingMethodAndSnapshot(
 			 JOIN payment_rails rail ON rail.code = asset.rail_code
 			 JOIN payment_ingresses connection ON connection.rail_code = asset.rail_code
 			 WHERE rm.id = ? AND asset.id = ? AND rm.enabled = 1 AND rm.target_value != ''
+				 AND rm.merchant_id IS ? AND rm.environment_id IS ?
 				 AND connection.enabled = 1
+				 AND connection.merchant_id IS ? AND connection.environment_id IS ?
 				 AND (rail.kind IN ('exchange', 'wallet') OR connection.health_status = 'healthy')
 			 ORDER BY connection.priority, connection.id LIMIT 1`,
 		)
-		.bind(input.receivingMethodId, input.paymentMethodId)
+		.bind(
+			input.receivingMethodId,
+			input.paymentMethodId,
+			input.merchantId ?? null,
+			input.environmentId ?? null,
+			input.merchantId ?? null,
+			input.environmentId ?? null,
+		)
 		.first<{
 			id: string;
 			min_amount_minor: string | null;
@@ -178,8 +191,8 @@ export async function allocateReceivingMethodAndSnapshot(
 					`INSERT OR IGNORE INTO orders
 						(id, external_order_id, status, amount_minor, currency, currency_decimals,
 						 payment_asset_id, received_amount_units, description, return_url,
-						 notify_url, api_key_id, api_protocol, metadata, expires_at, version, created_at, updated_at)
-						SELECT ?, ?, 'pending', ?, ?, ?, asset.id, '0', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?
+						 notify_url, merchant_id, environment_id, api_key_id, api_protocol, metadata, expires_at, version, created_at, updated_at)
+						SELECT ?, ?, 'pending', ?, ?, ?, asset.id, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?
 						FROM receiving_methods receiving
 						JOIN receiving_method_assets link ON link.receiving_method_id = receiving.id
 						JOIN payment_assets asset ON asset.id = link.payment_asset_id
@@ -194,6 +207,8 @@ export async function allocateReceivingMethodAndSnapshot(
 					input.order.description ?? null,
 					input.order.returnUrl ?? null,
 					input.order.notifyUrl ?? null,
+					input.order.merchantId ?? input.merchantId ?? null,
+					input.order.environmentId ?? input.environmentId ?? null,
 					input.order.apiKeyId ?? null,
 					input.order.apiProtocol ?? null,
 					input.order.metadata ? JSON.stringify(input.order.metadata) : null,
@@ -326,9 +341,16 @@ export async function allocateReceivingMethodAndSnapshot(
 	if (input.order) {
 		const existing = await db
 			.prepare(
-				"SELECT 1 AS value FROM orders WHERE external_order_id = ? AND api_key_id IS ? LIMIT 1",
+				`SELECT 1 AS value FROM orders
+				 WHERE external_order_id = ? AND api_key_id IS ?
+				   AND merchant_id IS ? AND environment_id IS ? LIMIT 1`,
 			)
-			.bind(input.order.externalOrderId, input.order.apiKeyId ?? null)
+			.bind(
+				input.order.externalOrderId,
+				input.order.apiKeyId ?? null,
+				input.order.merchantId ?? input.merchantId ?? null,
+				input.order.environmentId ?? input.environmentId ?? null,
+			)
 			.first<{ value: number }>();
 		if (existing) throw new PaymentOrderConflictError();
 	}

@@ -8,6 +8,10 @@ describe("API key rotation", () => {
 	let miniflare: Miniflare;
 	let db: D1Database;
 	const pepper = "test-api-key-pepper-that-is-long-enough";
+	const scope = {
+		merchantId: "default-merchant",
+		environmentId: "default-production",
+	};
 
 	beforeAll(async () => {
 		miniflare = new Miniflare({
@@ -21,14 +25,14 @@ describe("API key rotation", () => {
 		await db.batch([
 			db
 				.prepare(
-					"INSERT INTO api_keys (id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('old-key', 'Production', 'gmp_old', 'old-secret', '[\"orders:create\",\"orders:read\"]', ?, ?)",
+					"INSERT INTO api_keys (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('old-key', ?, ?, 'Production', 'gmp_old', 'old-secret', '[\"orders:create\",\"orders:read\"]', ?, ?)",
 				)
-				.bind(now, now),
+				.bind(scope.merchantId, scope.environmentId, now, now),
 			db
 				.prepare(
-					"INSERT INTO api_keys (id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('secondary-key', 'Secondary', 'gmp_secondary', 'old-secret', '[\"orders:read\"]', ?, ?)",
+					"INSERT INTO api_keys (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('secondary-key', ?, ?, 'Secondary', 'gmp_secondary', 'old-secret', '[\"orders:read\"]', ?, ?)",
 				)
-				.bind(now, now),
+				.bind(scope.merchantId, scope.environmentId, now, now),
 		]);
 	});
 
@@ -41,7 +45,7 @@ describe("API key rotation", () => {
 		const now = Date.now();
 		const replacement = await rotateApiKeyCredential(db, {
 			id: "old-key",
-
+			...scope,
 			pepper,
 			now,
 		});
@@ -80,7 +84,7 @@ describe("API key rotation", () => {
 		await expect(
 			rotateApiKeyCredential(db, {
 				id: "missing-key",
-
+				...scope,
 				pepper,
 			}),
 		).rejects.toMatchObject({ code: "api_key_not_found", status: 404 });
@@ -93,7 +97,11 @@ describe("API key rotation", () => {
 			.run();
 
 		await expect(
-			rotateApiKeyCredential(db, { id: "secondary-key", pepper }),
+			rotateApiKeyCredential(db, {
+				id: "secondary-key",
+				...scope,
+				pepper,
+			}),
 		).rejects.toMatchObject({ code: "api_key_revoked", status: 409 });
 	});
 });

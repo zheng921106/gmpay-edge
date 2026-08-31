@@ -10,6 +10,16 @@ import { claimApiRateLimit } from "./rate-limit";
 
 export class GmpayRateLimitError extends Error {}
 
+export type MerchantApiPrincipal = {
+	apiKeyId: string;
+	merchantId: string;
+	environmentId: string;
+	environment: "sandbox" | "production";
+	pid: string;
+	secret: string;
+	scopes: string[];
+};
+
 const LAST_USED_WRITE_INTERVAL_MS = 10 * 60_000;
 
 export function gmpaySignaturePayload(
@@ -116,21 +126,35 @@ async function authenticateParameters(
 	if (!(pid && signature)) return null;
 	const row = await db
 		.prepare(
-			`SELECT id, secret_encrypted, scopes, enabled, expires_at, revoked_at
-			 FROM api_keys WHERE pid = ? LIMIT 1`,
+			`SELECT k.id, k.merchant_id, k.environment_id, k.secret_encrypted,
+					k.scopes, k.enabled, k.expires_at, k.revoked_at,
+					m.status AS merchant_status, e.code AS environment_code,
+					e.status AS environment_status
+			 FROM api_keys k
+			 JOIN merchants m ON m.id = k.merchant_id
+			 JOIN merchant_environments e
+				ON e.id = k.environment_id AND e.merchant_id = k.merchant_id
+			 WHERE k.pid = ? LIMIT 1`,
 		)
 		.bind(pid)
 		.first<{
 			id: string;
+			merchant_id: string;
+			environment_id: string;
 			secret_encrypted: string;
 			scopes: string;
 			enabled: number;
 			expires_at: number | null;
 			revoked_at: number | null;
+			merchant_status: "active" | "suspended";
+			environment_code: "sandbox" | "production";
+			environment_status: "active" | "suspended";
 		}>();
 	if (
 		!row ||
 		row.enabled !== 1 ||
+		row.merchant_status !== "active" ||
+		row.environment_status !== "active" ||
 		row.revoked_at ||
 		(row.expires_at !== null && row.expires_at < Date.now())
 	)
@@ -156,7 +180,15 @@ async function authenticateParameters(
 		)
 		.bind(now, now, row.id, now - LAST_USED_WRITE_INTERVAL_MS)
 		.run();
-	return { apiKeyId: row.id, pid, secret, scopes };
+	return {
+		apiKeyId: row.id,
+		merchantId: row.merchant_id,
+		environmentId: row.environment_id,
+		environment: row.environment_code,
+		pid,
+		secret,
+		scopes,
+	} satisfies MerchantApiPrincipal;
 }
 
 function parameterValue(parameters: object, key: string) {

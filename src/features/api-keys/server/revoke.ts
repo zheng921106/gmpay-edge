@@ -1,8 +1,9 @@
 import { DomainError } from "#/lib/domain-error";
+import type { ApiKeyScope } from "#/features/api-keys/server/list";
 
 export async function revokeApiKeyCredential(
 	database: D1Database,
-	input: {
+	input: ApiKeyScope & {
 		id: string;
 		actorUserId: string;
 		requestId?: string | null;
@@ -17,9 +18,10 @@ export async function revokeApiKeyCredential(
 			.prepare(
 				`UPDATE api_keys
 				 SET revoked_at = ?, updated_at = ?
-				 WHERE id = ? AND revoked_at IS NULL`,
+				 WHERE id = ? AND merchant_id = ? AND environment_id = ?
+				   AND revoked_at IS NULL`,
 			)
-			.bind(now, now, input.id),
+			.bind(now, now, input.id, input.merchantId, input.environmentId),
 		database
 			.prepare(
 				`INSERT INTO audit_logs
@@ -27,7 +29,9 @@ export async function revokeApiKeyCredential(
 				  ip_address, after, created_at)
 					 SELECT ?, ?, 'api_key.revoked', 'api_key', ?, ?, ?, ?, ?
 				 WHERE changes() = 1 AND EXISTS (
-				  SELECT 1 FROM api_keys WHERE id = ? AND revoked_at = ?
+					  SELECT 1 FROM api_keys
+					  WHERE id = ? AND merchant_id = ? AND environment_id = ?
+					    AND revoked_at = ?
 				 )`,
 			)
 			.bind(
@@ -39,13 +43,17 @@ export async function revokeApiKeyCredential(
 				JSON.stringify({ revokedAt: new Date(now).toISOString() }),
 				now,
 				input.id,
+				input.merchantId,
+				input.environmentId,
 				now,
 			),
 	]);
 	if ((update?.meta.changes ?? 0) !== 1) {
 		const key = await database
-			.prepare("SELECT revoked_at FROM api_keys WHERE id = ? LIMIT 1")
-			.bind(input.id)
+			.prepare(
+				"SELECT revoked_at FROM api_keys WHERE id = ? AND merchant_id = ? AND environment_id = ? LIMIT 1",
+			)
+			.bind(input.id, input.merchantId, input.environmentId)
 			.first<{ revoked_at: number | null }>();
 		if (!key)
 			throw new DomainError("api_key_not_found", 404, "API key not found");

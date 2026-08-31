@@ -21,8 +21,20 @@ export interface ApiOrder {
 }
 
 export type OrderSelector =
-	| { id: string; externalOrderId?: never; apiKeyId?: string }
-	| { id?: never; externalOrderId: string; apiKeyId: string };
+	| {
+			id: string;
+			externalOrderId?: never;
+			apiKeyId?: string;
+			merchantId?: string;
+			environmentId?: string;
+	  }
+	| {
+			id?: never;
+			externalOrderId: string;
+			apiKeyId: string;
+			merchantId?: string;
+			environmentId?: string;
+	  };
 
 export async function getOrder(
 	db: D1Database,
@@ -42,9 +54,19 @@ export async function getOrder(
 			 FROM orders o LEFT JOIN payment_assets a ON a.id = o.payment_asset_id
 			 LEFT JOIN order_payment_snapshots ops ON ops.order_id = o.id
 			 WHERE ${field} = ?
-			 AND (? IS NULL OR o.api_key_id = ?) LIMIT 1`,
+			 AND (? IS NULL OR o.api_key_id = ?)
+			 AND (? IS NULL OR o.merchant_id = ?)
+			 AND (? IS NULL OR o.environment_id = ?) LIMIT 1`,
 		)
-		.bind(value, selector.apiKeyId ?? null, selector.apiKeyId ?? null)
+		.bind(
+			value,
+			selector.apiKeyId ?? null,
+			selector.apiKeyId ?? null,
+			selector.merchantId ?? null,
+			selector.merchantId ?? null,
+			selector.environmentId ?? null,
+			selector.environmentId ?? null,
+		)
 		.first<{
 			id: string;
 			external_order_id: string;

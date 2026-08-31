@@ -211,10 +211,17 @@ export async function handleGmpayQueryRequest(
 		const order = await findOrder(
 			env.DB,
 			parsed.data.trade_id
-				? { id: parsed.data.trade_id, apiKeyId: principal.apiKeyId }
+				? {
+						id: parsed.data.trade_id,
+						apiKeyId: principal.apiKeyId,
+						merchantId: principal.merchantId,
+						environmentId: principal.environmentId,
+					}
 				: {
 						externalOrderId: parsed.data.order_id as string,
 						apiKeyId: principal.apiKeyId,
+						merchantId: principal.merchantId,
+						environmentId: principal.environmentId,
 					},
 			request.url,
 		);
@@ -273,6 +280,9 @@ export async function handleGmpayCreateRequest(
 			{
 				apiKeyId: principal.apiKeyId,
 				apiProtocol: "gmpay",
+				merchantId: principal.merchantId,
+				environmentId: principal.environmentId,
+				environment: principal.environment,
 			},
 		);
 		return gatewayResponse(gmpayCreateResponse(order, requestId), 200);
