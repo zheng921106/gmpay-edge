@@ -25,15 +25,18 @@ const adminServerModules = [
 	"src/features/users/server/admin.ts",
 	"src/features/webhooks/server/admin.ts",
 	"src/features/webhooks/server/payment-event-sources.ts",
+	"src/features/merchants/server/admin.ts",
 ] as const;
 
 const reviewedPublicServerModules = [
 	"src/features/auth/server/session.ts",
+	"src/features/auth/server/registration.ts",
 	"src/features/checkout/server/functions.ts",
 	"src/features/installation/server/functions.ts",
 	"src/features/settings/server/site-brand-entry.ts",
 	"src/features/status/server/assets.ts",
 	"src/features/status/server/functions.ts",
+	"src/server/merchant-context.ts",
 ] as const;
 
 const reviewedInputlessPostFunctions = new Set([
@@ -41,6 +44,7 @@ const reviewedInputlessPostFunctions = new Set([
 	"removeSiteBackgroundFn",
 	"removeSiteLogoFn",
 	"syncTelegramCommandsFn",
+	"selectDefaultMerchantContextFn",
 ]);
 
 const adminOwnerFunctions = new Set([
@@ -51,11 +55,13 @@ const adminOwnerFunctions = new Set([
 	"context",
 	"getAdminServerContext",
 	"paymentAdminContext",
+	"platformContext",
 	"requireAdmin",
 	"sourceAdminContext",
 	"sourceAdminMutationContext",
 	"settingsAdminContext",
 	"telegramAdminContext",
+	"merchantContext",
 ]);
 
 const permissionContracts = [
@@ -64,14 +70,19 @@ const permissionContracts = [
 	["roles:create|update", ["saveSystemRoleFn"]],
 	["roles:update", ["setSystemRoleEnabledFn"]],
 	["roles:delete", ["deleteSystemRoleFn"]],
-	["users:read", ["listUsersFn"]],
+	["users:read", ["listUsersFn", "listPlatformMerchantsFn"]],
 	["users:create|update", ["saveUserFn"]],
+	["users:create", ["createPlatformMerchantFn"]],
 	["users:update", ["setUserEnabledFn", "setUserRolesFn"]],
+	[
+		"users:update",
+		["setPlatformMerchantStatusFn", "setPlatformEnvironmentStatusFn"],
+	],
 	["users:delete", ["deleteUserFn"]],
-	["api_keys:read", ["listApiKeysFn"]],
-	["api_keys:create", ["createApiKeyFn"]],
-	["api_keys:update", ["rotateApiKeyFn", "setApiKeyEnabledFn"]],
-	["api_keys:delete", ["revokeApiKeyFn"]],
+	["merchant:read", ["listApiKeysFn", "listMerchantMembersFn"]],
+	["merchant:create", ["createApiKeyFn", "upsertMerchantMemberFn"]],
+	["merchant:update", ["rotateApiKeyFn", "setApiKeyEnabledFn"]],
+	["merchant:delete", ["revokeApiKeyFn"]],
 	["orders:read", ["listAdminOrdersFn"]],
 	["orders:create", ["createDevelopmentOrderFn"]],
 	[
@@ -242,10 +253,10 @@ describe("server entry authorization coverage", () => {
 		for (const file of adminServerModules) {
 			const source = read(file);
 			expect(source, file).toMatch(
-				/requireAdmin|adminContext|getAdminServerContext|settingsAdminContext|telegramAdminContext/,
+				/requireAdmin|requireMerchantAccess|adminContext|merchantContext|getAdminServerContext|settingsAdminContext|telegramAdminContext/,
 			);
 			expect(source, file).toMatch(
-				/systemPermission|paymentSettingsPermission/,
+				/systemPermission|paymentSettingsPermission|requireMerchantAccess/,
 			);
 			for (const declaration of serverFunctionDeclarations(file, source)) {
 				expect(
@@ -435,6 +446,14 @@ function permissionSignature(node: ts.Node): string {
 		);
 		return `${module}:${action}`;
 	}
+	if (
+		ts.isCallExpression(node) &&
+		ts.isIdentifier(node.expression) &&
+		node.expression.text === "merchantContext"
+	) {
+		const permissionMask = merchantPermissionMask(node.arguments[0]);
+		return `merchant:${merchantAction(permissionMask)}`;
+	}
 	for (const child of node.getChildren()) {
 		const signature = permissionSignatureOrUndefined(child);
 		if (signature) return signature;
@@ -458,6 +477,36 @@ function actionText(node: ts.Expression | undefined): string {
 			.sort()
 			.join("|");
 	return literalText(node);
+}
+
+function merchantPermissionMask(node: ts.Expression | undefined) {
+	if (node && ts.isNumericLiteral(node)) return Number(node.text);
+	if (node && ts.isObjectLiteralExpression(node)) {
+		const property = node.properties.find(
+			(property) =>
+				ts.isPropertyAssignment(property) &&
+				ts.isIdentifier(property.name) &&
+				property.name.text === "permissionMask",
+		);
+		if (
+			property &&
+			ts.isPropertyAssignment(property) &&
+			ts.isNumericLiteral(property.initializer)
+		)
+			return Number(property.initializer.text);
+	}
+	throw new Error("Merchant permissions must use explicit masks");
+}
+
+function merchantAction(mask: number) {
+	const action = new Map([
+		[1, "read"],
+		[2, "create"],
+		[4, "update"],
+		[8, "delete"],
+	]).get(mask);
+	if (!action) throw new Error("Merchant permission mask is not an action bit");
+	return action;
 }
 
 function literalText(node: ts.Expression | undefined): string {

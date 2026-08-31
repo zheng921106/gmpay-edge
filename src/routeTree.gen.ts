@@ -69,10 +69,12 @@ import { Route as AdminPaymentSettingsIngressesRouteImport } from './routes/admi
 import { Route as AdminOperationsScheduledRouteImport } from './routes/admin/operations/scheduled'
 import { Route as AdminOperationsQueuesRouteImport } from './routes/admin/operations/queues'
 import { Route as AdminOperationsAuditLogsRouteImport } from './routes/admin/operations/audit-logs'
+import { Route as AdminMerchantMembersRouteImport } from './routes/admin/merchant/members'
 import { Route as AdminAccessUsersRouteImport } from './routes/admin/access/users'
 import { Route as AdminAccessRolesRouteImport } from './routes/admin/access/roles'
 import { Route as AdminAccessPermissionBitsRouteImport } from './routes/admin/access/permission-bits'
 import { Route as AdminAccessModulesRouteImport } from './routes/admin/access/modules'
+import { Route as AdminAccessMerchantsRouteImport } from './routes/admin/access/merchants'
 import { Route as AdminPaymentSettingsRatesIndexRouteImport } from './routes/admin/payment-settings/rates/index'
 import { Route as ApiTelegramBotIdWebhookRouteImport } from './routes/api/telegram/$botId/webhook'
 import { Route as ApiProvidersOkpayNotifyRouteImport } from './routes/api/providers/okpay/notify'
@@ -395,6 +397,11 @@ const AdminOperationsAuditLogsRoute =
     path: '/audit-logs',
     getParentRoute: () => AdminOperationsRouteRoute,
   } as any)
+const AdminMerchantMembersRoute = AdminMerchantMembersRouteImport.update({
+  id: '/merchant/members',
+  path: '/merchant/members',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminAccessUsersRoute = AdminAccessUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -414,6 +421,11 @@ const AdminAccessPermissionBitsRoute =
 const AdminAccessModulesRoute = AdminAccessModulesRouteImport.update({
   id: '/modules',
   path: '/modules',
+  getParentRoute: () => AdminAccessRouteRoute,
+} as any)
+const AdminAccessMerchantsRoute = AdminAccessMerchantsRouteImport.update({
+  id: '/merchants',
+  path: '/merchants',
   getParentRoute: () => AdminAccessRouteRoute,
 } as any)
 const AdminPaymentSettingsRatesIndexRoute =
@@ -520,10 +532,12 @@ export interface FileRoutesByFullPath {
   '/checkout/$orderId': typeof CheckoutOrderIdRoute
   '/': typeof publicIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/access/merchants': typeof AdminAccessMerchantsRoute
   '/admin/access/modules': typeof AdminAccessModulesRoute
   '/admin/access/permission-bits': typeof AdminAccessPermissionBitsRoute
   '/admin/access/roles': typeof AdminAccessRolesRoute
   '/admin/access/users': typeof AdminAccessUsersRoute
+  '/admin/merchant/members': typeof AdminMerchantMembersRoute
   '/admin/operations/audit-logs': typeof AdminOperationsAuditLogsRoute
   '/admin/operations/queues': typeof AdminOperationsQueuesRoute
   '/admin/operations/scheduled': typeof AdminOperationsScheduledRoute
@@ -588,10 +602,12 @@ export interface FileRoutesByTo {
   '/checkout/$orderId': typeof CheckoutOrderIdRoute
   '/': typeof publicIndexRoute
   '/admin': typeof AdminIndexRoute
+  '/admin/access/merchants': typeof AdminAccessMerchantsRoute
   '/admin/access/modules': typeof AdminAccessModulesRoute
   '/admin/access/permission-bits': typeof AdminAccessPermissionBitsRoute
   '/admin/access/roles': typeof AdminAccessRolesRoute
   '/admin/access/users': typeof AdminAccessUsersRoute
+  '/admin/merchant/members': typeof AdminMerchantMembersRoute
   '/admin/operations/audit-logs': typeof AdminOperationsAuditLogsRoute
   '/admin/operations/queues': typeof AdminOperationsQueuesRoute
   '/admin/operations/scheduled': typeof AdminOperationsScheduledRoute
@@ -666,10 +682,12 @@ export interface FileRoutesById {
   '/checkout/$orderId': typeof CheckoutOrderIdRoute
   '/(public)/': typeof publicIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/access/merchants': typeof AdminAccessMerchantsRoute
   '/admin/access/modules': typeof AdminAccessModulesRoute
   '/admin/access/permission-bits': typeof AdminAccessPermissionBitsRoute
   '/admin/access/roles': typeof AdminAccessRolesRoute
   '/admin/access/users': typeof AdminAccessUsersRoute
+  '/admin/merchant/members': typeof AdminMerchantMembersRoute
   '/admin/operations/audit-logs': typeof AdminOperationsAuditLogsRoute
   '/admin/operations/queues': typeof AdminOperationsQueuesRoute
   '/admin/operations/scheduled': typeof AdminOperationsScheduledRoute
@@ -744,10 +762,12 @@ export interface FileRouteTypes {
     | '/checkout/$orderId'
     | '/'
     | '/admin/'
+    | '/admin/access/merchants'
     | '/admin/access/modules'
     | '/admin/access/permission-bits'
     | '/admin/access/roles'
     | '/admin/access/users'
+    | '/admin/merchant/members'
     | '/admin/operations/audit-logs'
     | '/admin/operations/queues'
     | '/admin/operations/scheduled'
@@ -812,10 +832,12 @@ export interface FileRouteTypes {
     | '/checkout/$orderId'
     | '/'
     | '/admin'
+    | '/admin/access/merchants'
     | '/admin/access/modules'
     | '/admin/access/permission-bits'
     | '/admin/access/roles'
     | '/admin/access/users'
+    | '/admin/merchant/members'
     | '/admin/operations/audit-logs'
     | '/admin/operations/queues'
     | '/admin/operations/scheduled'
@@ -889,10 +911,12 @@ export interface FileRouteTypes {
     | '/checkout/$orderId'
     | '/(public)/'
     | '/admin/'
+    | '/admin/access/merchants'
     | '/admin/access/modules'
     | '/admin/access/permission-bits'
     | '/admin/access/roles'
     | '/admin/access/users'
+    | '/admin/merchant/members'
     | '/admin/operations/audit-logs'
     | '/admin/operations/queues'
     | '/admin/operations/scheduled'
@@ -1381,6 +1405,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOperationsAuditLogsRouteImport
       parentRoute: typeof AdminOperationsRouteRoute
     }
+    '/admin/merchant/members': {
+      id: '/admin/merchant/members'
+      path: '/merchant/members'
+      fullPath: '/admin/merchant/members'
+      preLoaderRoute: typeof AdminMerchantMembersRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/access/users': {
       id: '/admin/access/users'
       path: '/users'
@@ -1407,6 +1438,13 @@ declare module '@tanstack/react-router' {
       path: '/modules'
       fullPath: '/admin/access/modules'
       preLoaderRoute: typeof AdminAccessModulesRouteImport
+      parentRoute: typeof AdminAccessRouteRoute
+    }
+    '/admin/access/merchants': {
+      id: '/admin/access/merchants'
+      path: '/merchants'
+      fullPath: '/admin/access/merchants'
+      preLoaderRoute: typeof AdminAccessMerchantsRouteImport
       parentRoute: typeof AdminAccessRouteRoute
     }
     '/admin/payment-settings/rates/': {
@@ -1535,6 +1573,7 @@ const publicRouteRouteWithChildren = publicRouteRoute._addFileChildren(
 )
 
 interface AdminAccessRouteRouteChildren {
+  AdminAccessMerchantsRoute: typeof AdminAccessMerchantsRoute
   AdminAccessModulesRoute: typeof AdminAccessModulesRoute
   AdminAccessPermissionBitsRoute: typeof AdminAccessPermissionBitsRoute
   AdminAccessRolesRoute: typeof AdminAccessRolesRoute
@@ -1543,6 +1582,7 @@ interface AdminAccessRouteRouteChildren {
 }
 
 const AdminAccessRouteRouteChildren: AdminAccessRouteRouteChildren = {
+  AdminAccessMerchantsRoute: AdminAccessMerchantsRoute,
   AdminAccessModulesRoute: AdminAccessModulesRoute,
   AdminAccessPermissionBitsRoute: AdminAccessPermissionBitsRoute,
   AdminAccessRolesRoute: AdminAccessRolesRoute,
@@ -1691,6 +1731,7 @@ interface AdminRouteRouteChildren {
   AdminPaymentReviewsRoute: typeof AdminPaymentReviewsRoute
   AdminPaymentsRoute: typeof AdminPaymentsRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminMerchantMembersRoute: typeof AdminMerchantMembersRoute
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
@@ -1707,6 +1748,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminPaymentReviewsRoute: AdminPaymentReviewsRoute,
   AdminPaymentsRoute: AdminPaymentsRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminMerchantMembersRoute: AdminMerchantMembersRoute,
 }
 
 const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(

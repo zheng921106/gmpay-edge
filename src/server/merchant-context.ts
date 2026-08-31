@@ -228,9 +228,13 @@ export const selectDefaultMerchantContextFn = createServerFn({
 	const env = getCloudflareEnv(request);
 	if (!env.DB) throw new Error("D1 binding DB is unavailable");
 	const access = await loadMerchantSession(request);
-	const context = await findDefaultMerchantContext(env.DB, access.user.id);
-	if (!context) throw new AccessDeniedError(403);
-	setResponseHeader("set-cookie", await setMerchantContext(request, context));
+	const context = await findDefaultMerchantContext(
+		env.DB,
+		access.user.id,
+		access.root,
+	);
+	if (context)
+		setResponseHeader("set-cookie", await setMerchantContext(request, context));
 	return context;
 });
 
@@ -276,10 +280,19 @@ export async function listMerchantContexts(
 export async function findDefaultMerchantContext(
 	db: RuntimeDatabase,
 	userId: string,
+	root = false,
 ): Promise<MerchantEnvironmentContext | null> {
-	const context = await db
-		.prepare(
-			`SELECT me.merchant_id AS merchantId, me.id AS environmentId, me.code AS environment
+	const statement = root
+		? db.prepare(
+				`SELECT me.merchant_id AS merchantId, me.id AS environmentId, me.code AS environment
+				 FROM merchants m
+				 JOIN merchant_environments me ON me.merchant_id = m.id
+				 WHERE m.status = 'active' AND me.status = 'active'
+				 ORDER BY CASE me.code WHEN 'production' THEN 0 ELSE 1 END, m.created_at, me.id LIMIT 1`,
+			)
+		: db
+				.prepare(
+					`SELECT me.merchant_id AS merchantId, me.id AS environmentId, me.code AS environment
 			 FROM merchant_memberships mm
 			 JOIN merchants m ON m.id = mm.merchant_id
 			 JOIN merchant_environments me ON me.merchant_id = mm.merchant_id
@@ -287,9 +300,9 @@ export async function findDefaultMerchantContext(
 			   AND me.status = 'active'
 			 ORDER BY CASE me.code WHEN 'production' THEN 0 ELSE 1 END,
 			          mm.created_at ASC, me.id ASC LIMIT 1`,
-		)
-		.bind(userId)
-		.first<MerchantEnvironmentContext>();
+				)
+				.bind(userId);
+	const context = await statement.first<MerchantEnvironmentContext>();
 	return context ?? null;
 }
 

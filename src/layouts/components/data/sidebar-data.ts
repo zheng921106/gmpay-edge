@@ -302,6 +302,13 @@ export const navigationGroups: readonly NavigationGroup[] = [
 						systemPermission("users", "read"),
 					),
 					entry(
+						"merchants",
+						() => m.merchant_admin_title(),
+						"/admin/access/merchants",
+						Users,
+						systemPermission("users", "read"),
+					),
+					entry(
 						"roles",
 						() => m.nav_role_management(),
 						"/admin/access/roles",
@@ -518,6 +525,12 @@ export function merchantSidebarData(
 						url: "/admin/api-keys",
 						icon: KeyRound,
 					},
+					{
+						id: "merchant-members",
+						title: m.merchant_members_title(),
+						url: "/admin/merchant/members",
+						icon: Users,
+					},
 				],
 			},
 		],
@@ -532,7 +545,9 @@ export function canAccessMerchantPath(
 		pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
 	return (
 		hasMerchantPermission(permissions, "merchant", 1) &&
-		(normalized === "/admin" || normalized === "/admin/api-keys")
+		(normalized === "/admin" ||
+			normalized === "/admin/api-keys" ||
+			normalized === "/admin/merchant/members")
 	);
 }
 
