@@ -118,6 +118,32 @@ describe("versioned RBAC access cache", () => {
 		);
 	});
 
+	it("does not treat merchant roles as platform roles", async () => {
+		await database.batch([
+			database
+				.prepare(
+					"INSERT INTO merchants (id, slug, name, status, created_at, updated_at) VALUES ('merchant-1', 'merchant-1', 'Merchant', 'active', ?, ?)",
+				)
+				.bind(updatedAt, updatedAt),
+			database
+				.prepare(
+					"INSERT INTO roles (id, merchant_id, name, built_in, enabled, created_at, updated_at) VALUES ('merchant-root', 'merchant-1', 'root', 1, 1, ?, ?)",
+				)
+				.bind(updatedAt, updatedAt),
+			database
+				.prepare(
+					"INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES ('merchant-user-role', 'user-1', 'merchant-root', ?)",
+				)
+				.bind(updatedAt),
+		]);
+		await database
+			.prepare("DELETE FROM user_roles WHERE id LIKE 'user-role-%'")
+			.run();
+		await expect(
+			loadEffectiveUserAccess(database, undefined, sessionUser(updatedAt)),
+		).rejects.toThrow("Forbidden");
+	});
+
 	it("does not coalesce the same user revision across D1 bindings", async () => {
 		const first = countedDatabase(database);
 		const second = countedDatabase(database);

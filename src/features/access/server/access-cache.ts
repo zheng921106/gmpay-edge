@@ -98,7 +98,7 @@ async function loadAuthoritativeAccess(
 			FROM user_roles ur
 			JOIN roles r ON r.id = ur.role_id
 			LEFT JOIN role_permissions rp ON rp.role_id = r.id
-			WHERE ur.user_id = ? AND r.enabled = 1
+			WHERE ur.user_id = ? AND r.enabled = 1 AND r.merchant_id IS NULL
 			ORDER BY r.name, rp.module`)
 		.bind(user.id)
 		.all<{
