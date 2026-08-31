@@ -11,13 +11,11 @@
 		{
 			"binding": "DB",
 			"database_name": "gmpay-edge",
-			"migrations_dir": "drizzle","database_id": "e6ed340e-8299-4856-a127-69b6413a4ee2"
+			"migrations_dir": "drizzle"
 		}
 	],
-	"r2_buckets": [{ "binding": "FILES", "bucket_name": "gmpay-edge-files","preview_bucket_name": "gmpay-edge-files" }],
-	"kv_namespaces": [
-		{ "binding": "CACHE","id": "a08e6106e3ff4aefb82d2c02a5e30daf" }
-	],
+	"r2_buckets": [{ "binding": "FILES", "bucket_name": "gmpay-edge-files" }],
+	"kv_namespaces": [{ "binding": "CACHE" }],
 	"send_email": [{ "name": "EMAIL" }],
 	"queues": {
 		"producers": [

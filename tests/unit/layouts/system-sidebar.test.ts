@@ -45,7 +45,10 @@ describe("admin navigation", () => {
 	});
 
 	it.each([
-		[systemPermission("users", "read"), ["/admin/access/users"]],
+		[
+			systemPermission("users", "read"),
+			["/admin/access/users", "/admin/access/merchants"],
+		],
 		[
 			systemPermission("roles", "read"),
 			[
@@ -66,7 +69,7 @@ describe("admin navigation", () => {
 		[
 			[systemPermission("users", "read")],
 			"/admin/access/users",
-			["/admin/access/users"],
+			["/admin/access/users", "/admin/access/merchants"],
 		],
 		[
 			[systemPermission("roles", "read")],
@@ -82,6 +85,7 @@ describe("admin navigation", () => {
 			"/admin/access/users",
 			[
 				"/admin/access/users",
+				"/admin/access/merchants",
 				"/admin/access/roles",
 				"/admin/access/modules",
 				"/admin/access/permission-bits",

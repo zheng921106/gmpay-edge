@@ -3,6 +3,7 @@ import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "#/db/schema";
 import { registerMerchant } from "#/features/auth/server/registration";
+import { installSystem } from "#/features/installation/server/install";
 import {
 	listMerchantMembers,
 	upsertMerchantMember,
@@ -25,6 +26,11 @@ describe("merchant membership roles", () => {
 		});
 		db = await miniflare.getD1Database("DB");
 		await applyMigrations(db);
+		await installSystem(drizzle(db, { schema }), {
+			name: "Platform Root",
+			email: "root@acme.example",
+			password: "a-secure-root-password-123",
+		});
 		const merchantA = await registerMerchant(drizzle(db, { schema }), {
 			name: "Merchant A",
 			slug: "merchant-a",

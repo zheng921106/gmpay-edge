@@ -30,6 +30,7 @@ describe("merchant admin bootstrap", () => {
 	let contextCookie: string;
 	let merchantId: string;
 	let productionEnvironmentId: string;
+	let runtimeConfig: ReturnType<typeof createInitialRuntimeConfig>;
 
 	beforeAll(async () => {
 		miniflare = new Miniflare({
@@ -39,7 +40,7 @@ describe("merchant admin bootstrap", () => {
 		});
 		db = await miniflare.getD1Database("DB");
 		await applyMigrations(db);
-		const runtime = createInitialRuntimeConfig("https://pay.example");
+		runtimeConfig = createInitialRuntimeConfig("https://pay.example");
 		await installSystem(
 			drizzle(db, { schema }),
 			{
@@ -47,7 +48,7 @@ describe("merchant admin bootstrap", () => {
 				email: "root@example.com",
 				password: "exact-root-password",
 			},
-			runtime,
+			runtimeConfig,
 		);
 		const merchant = await registerMerchant(drizzle(db, { schema }), {
 			name: "Merchant Owner",
@@ -58,8 +59,8 @@ describe("merchant admin bootstrap", () => {
 		merchantId = merchant.merchantId;
 		productionEnvironmentId = merchant.environmentIds.production;
 		const auth = createAuth(drizzle(db, { schema }), {
-			BETTER_AUTH_SECRET: runtime.betterAuthSecret,
-			BETTER_AUTH_URL: runtime.betterAuthUrl,
+			BETTER_AUTH_SECRET: runtimeConfig.betterAuthSecret,
+			BETTER_AUTH_URL: runtimeConfig.betterAuthUrl,
 		});
 		const response = await auth.api.signInEmail({
 			body: {
@@ -75,7 +76,7 @@ describe("merchant admin bootstrap", () => {
 				environmentId: merchant.environmentIds.production,
 				environment: "production",
 			},
-			runtime.betterAuthSecret,
+			runtimeConfig.betterAuthSecret,
 		);
 	});
 
@@ -154,5 +155,35 @@ describe("merchant admin bootstrap", () => {
 				merchantSlug: "merchant-owner",
 			},
 		]);
+	});
+
+	it("lets a root administrator select a scoped workspace when no context cookie exists", async () => {
+		const auth = createAuth(drizzle(db, { schema }), {
+			BETTER_AUTH_SECRET: runtimeConfig.betterAuthSecret,
+			BETTER_AUTH_URL: runtimeConfig.betterAuthUrl,
+		});
+		const response = await auth.api.signInEmail({
+			body: {
+				email: "root@example.com",
+				password: "exact-root-password",
+			},
+			asResponse: true,
+		});
+		const rootCookie =
+			response.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
+		workerEnv.bindings.DB = db;
+		await expect(
+			runWithRuntimeEnv(adaptCloudflareEnv(workerEnv.bindings), () =>
+				loadAdminBootstrap(
+					new Request("https://pay.example/admin/receiving-methods", {
+						headers: { cookie: rootCookie },
+					}),
+				),
+			),
+		).resolves.toMatchObject({
+			installed: true,
+			merchant: null,
+			merchantContext: null,
+		});
 	});
 });

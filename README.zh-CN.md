@@ -15,9 +15,9 @@
 [![Vitest](https://img.shields.io/badge/tests-Vitest-6E9F18.svg?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![Locales: 6](https://img.shields.io/badge/locales-6-7C3AED.svg?style=flat-square)](project.inlang/settings.json)
 
-GMPay Edge 是可部署到 Cloudflare Workers 或 Bun/Nitro Docker 容器的自托管单租户加密货币支付网关。一个部署即可提供带签名的商户 API、响应式收银台、支付运营、动态角色权限、可靠的 Webhook 投递、定时处理和 Telegram 自动化。
+GMPay Edge 是可部署到 Cloudflare Workers 或 Bun/Nitro Docker 容器的自托管多商户加密货币支付网关。一个部署即可提供带签名的商户 API、彼此隔离的沙盒与生产环境、响应式收银台、支付运营、动态角色权限、可靠的 Webhook 投递、定时处理和 Telegram 自动化。
 
-它适合希望掌控支付基础设施，同时通过只读方式接入公链、交易所和数字钱包的运营者。商户是外部 API 客户端；运营人员与管理员统一使用受保护的 `/admin` 后台。
+它适合希望掌控支付基础设施，同时通过只读方式接入公链、交易所和数字钱包的运营者。每次注册会创建一个启用的商户及其沙盒、生产环境；商户成员使用受保护的 `/admin` 后台，平台管理员可以跨商户运营。
 
 > [!IMPORTANT]
 > GMPay Edge 仍在持续开发。内置接入表示相应能力已经实现，不代表该方式会自动达到生产可用状态或出现在收银台。生产使用仍需要部署者自己的端点或只读凭证、配置完成的收款方式、备份与监控，以及真实平台验收测试。
@@ -28,6 +28,7 @@ GMPay Edge 是可部署到 Cloudflare Workers 或 Bun/Nitro Docker 容器的自�
 - 通过 Binance、OKX 与 OKPay 只读适配器检测入账。
 - 提供 GMPay 主商户协议，支持 JSON 与表单输入。
 - 在 API 边界兼容 EPay，不维护第二套订单模型。
+- 每个商户可创建沙盒和生产 API Key，GMPay、EPay 的端点路径保持不变，由 Key 身份确定租户范围。
 - 保留不可变支付快照，集中且幂等地处理订单状态流转与支付入账。
 - 通过 Queue 支持的可靠 Outbox 投递商户回调，并保留重试历史、人工重试和审计记录。
 - 使用 Better Auth、可选 TOTP 和动态多角色 RBAC 保护后台，包括受保护的内置 `root` 角色。

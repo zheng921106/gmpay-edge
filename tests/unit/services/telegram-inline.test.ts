@@ -53,6 +53,8 @@ describe("Telegram inline integration", () => {
 		expect(db.bindings).toEqual([
 			"22222222-2222-4222-8222-222222222222",
 			"12345",
+			"default-merchant",
+			"default-production",
 			"1001",
 			"%1001%",
 			10,
@@ -142,7 +144,7 @@ describe("Telegram inline integration", () => {
 		const db = {
 			prepare: vi.fn((sql: string) =>
 				sql.includes("FROM receiving_methods")
-					? { all: async () => ({ results: rows }) }
+					? { bind: () => ({ all: async () => ({ results: rows }) }) }
 					: sql.includes("FROM exchange_rates")
 						? { bind: () => ({ first: async () => null }) }
 						: sql.includes("FROM telegram_bot_commands")
@@ -183,7 +185,12 @@ describe("Telegram inline integration", () => {
 			prepare: vi.fn((sql: string) =>
 				sql.includes("FROM telegram_notification_bindings")
 					? { bind: () => ({ all: async () => ({ results: [] }) }) }
-					: { all: async () => ({ results: [] }) },
+					: {
+							bind: () => ({
+								all: async () => ({ results: [] }),
+								first: async () => null,
+							}),
+						},
 			),
 		} as unknown as D1Database;
 		await processTelegramUpdate({
@@ -283,15 +290,17 @@ function database(rows: unknown[]) {
 		prepare: vi.fn((sql: string) => ({
 			bind: (...values: unknown[]) => {
 				state.bindings = values;
-				return sql.includes("FROM telegram_bot_commands")
-					? {
-							first: async () => ({
-								command: "status",
-								handler_type: "status",
-								template_translations: {},
-							}),
-						}
-					: { all: async () => ({ results: rows }) };
+				return sql.includes("FROM telegram_bots")
+					? { first: async () => null }
+					: sql.includes("FROM telegram_bot_commands")
+						? {
+								first: async () => ({
+									command: "status",
+									handler_type: "status",
+									template_translations: {},
+								}),
+							}
+						: { all: async () => ({ results: rows }) };
 			},
 		})),
 	};

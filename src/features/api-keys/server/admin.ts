@@ -2,8 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import {
-	requireMerchantAccess,
 	type MerchantPermission,
+	requireMerchantAccess,
 } from "#/features/access/server/merchant-access";
 import { setApiKeyEnabled } from "#/features/api-keys/server/enabled";
 import { listApiKeys } from "#/features/api-keys/server/list";

@@ -24,6 +24,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
 import { Switch } from "#/components/ui/switch";
+import { hasMerchantPermission } from "#/features/access/merchant-rbac";
 import { paymentSettingsOperationErrorMessage } from "#/features/payment-settings/error-message";
 import { paymentSettingsError } from "#/features/payment-settings/errors";
 import {
@@ -36,6 +37,7 @@ import {
 } from "#/features/payment-settings/server/methods";
 import { ConfirmDialog } from "#/layouts/components/confirm-dialog";
 import { Main } from "#/layouts/components/main";
+import { useNavigation } from "#/layouts/components/navigation-context";
 import { PageHeader } from "#/layouts/components/page-header";
 import { useCurrentProTableUrlState } from "#/lib/pro-table-url-state";
 import { m } from "#/paraglide/messages";
@@ -45,17 +47,36 @@ type MethodRow = Awaited<ReturnType<typeof listReceivingMethodsFn>>[number];
 export function ReceivingMethodsPage() {
 	const tableUrlState = useCurrentProTableUrlState({ searchColumnId: "name" });
 	const client = useQueryClient();
+	const { merchantContext, merchantPermissions: rawMerchantPermissions } =
+		useNavigation();
+	const merchantPermissions = rawMerchantPermissions ?? [];
+	const merchantWorkspace = merchantPermissions.length > 0;
+	const canCreate =
+		!merchantWorkspace ||
+		hasMerchantPermission(merchantPermissions, "merchant", 2);
+	const canUpdate =
+		!merchantWorkspace ||
+		hasMerchantPermission(merchantPermissions, "merchant", 4);
+	const canDelete =
+		!merchantWorkspace ||
+		hasMerchantPermission(merchantPermissions, "merchant", 8);
+	const receivingMethodsQueryKey = [
+		"admin",
+		"receiving-methods",
+		merchantContext?.merchantId ?? "system",
+		merchantContext?.environmentId ?? "global",
+	];
 	const [editingMethod, setEditingMethod] = useState<MethodRow | null>(null);
 	const [deletingMethod, setDeletingMethod] = useState<MethodRow | null>(null);
 	const query = useQuery({
-		queryKey: ["admin", "receiving-methods"],
+		queryKey: receivingMethodsQueryKey,
 		queryFn: () => listReceivingMethodsFn(),
 	});
 	const toggle = useMutation({
 		mutationFn: setReceivingMethodEnabledFn,
 		onSuccess: async () => {
 			await client.invalidateQueries({
-				queryKey: ["admin", "receiving-methods"],
+				queryKey: receivingMethodsQueryKey,
 			});
 			toast.success(m.receiving_methods_saved());
 		},
@@ -70,7 +91,7 @@ export function ReceivingMethodsPage() {
 				return;
 			}
 			await client.invalidateQueries({
-				queryKey: ["admin", "receiving-methods"],
+				queryKey: receivingMethodsQueryKey,
 			});
 			toast.success(m.receiving_methods_deleted());
 		},
@@ -85,7 +106,7 @@ export function ReceivingMethodsPage() {
 				<Switch
 					aria-label={`${m.common_enabled()} · ${row.original.name}`}
 					checked={Boolean(row.original.enabled)}
-					disabled={toggle.isPending}
+					disabled={!canUpdate || toggle.isPending}
 					onCheckedChange={(enabled) =>
 						toggle.mutate({ data: { id: row.original.id, enabled } })
 					}
@@ -155,40 +176,50 @@ export function ReceivingMethodsPage() {
 				</code>
 			),
 		},
-		{
-			id: "actions",
-			header: m.common_actions(),
-			cell: ({ row }) => (
-				<div className="flex justify-end">
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<ProButton
-								variant="ghost"
-								size="icon-sm"
-								tooltip={m.common_actions()}
-							>
-								<MoreHorizontal />
-							</ProButton>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="w-44">
-							<DropdownMenuItem onClick={() => setEditingMethod(row.original)}>
-								<Pencil />
-								{m.common_edit()}
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								variant="destructive"
-								disabled={remove.isPending}
-								onClick={() => setDeletingMethod(row.original)}
-							>
-								<Trash2 />
-								{m.common_delete()}
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
-			),
-		},
+		...(canUpdate || canDelete
+			? [
+					{
+						id: "actions",
+						header: m.common_actions(),
+						cell: ({ row }: { row: { original: MethodRow } }) => (
+							<div className="flex justify-end">
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<ProButton
+											variant="ghost"
+											size="icon-sm"
+											tooltip={m.common_actions()}
+										>
+											<MoreHorizontal />
+										</ProButton>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end" className="w-44">
+										{canUpdate ? (
+											<DropdownMenuItem
+												onClick={() => setEditingMethod(row.original)}
+											>
+												<Pencil />
+												{m.common_edit()}
+											</DropdownMenuItem>
+										) : null}
+										{canUpdate && canDelete ? <DropdownMenuSeparator /> : null}
+										{canDelete ? (
+											<DropdownMenuItem
+												variant="destructive"
+												disabled={remove.isPending}
+												onClick={() => setDeletingMethod(row.original)}
+											>
+												<Trash2 />
+												{m.common_delete()}
+											</DropdownMenuItem>
+										) : null}
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</div>
+						),
+					},
+				]
+			: []),
 	];
 	return (
 		<Main fixed className="gap-4">
@@ -196,13 +227,15 @@ export function ReceivingMethodsPage() {
 				title={m.receiving_methods_title()}
 				description={m.receiving_methods_description()}
 				actions={
-					<CreateReceivingMethodForm
-						onCreated={async () => {
-							await client.invalidateQueries({
-								queryKey: ["admin", "receiving-methods"],
-							});
-						}}
-					/>
+					canCreate ? (
+						<CreateReceivingMethodForm
+							onCreated={async () => {
+								await client.invalidateQueries({
+									queryKey: receivingMethodsQueryKey,
+								});
+							}}
+						/>
+					) : null
 				}
 			/>
 			<ProTable
@@ -258,7 +291,7 @@ export function ReceivingMethodsPage() {
 					});
 					setEditingMethod(null);
 					await client.invalidateQueries({
-						queryKey: ["admin", "receiving-methods"],
+						queryKey: receivingMethodsQueryKey,
 					});
 					toast.success(m.receiving_methods_saved());
 				}}

@@ -12,12 +12,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
+import { m } from "#/paraglide/messages";
 import {
 	listMerchantContextsFn,
 	selectMerchantContextFn,
-} from "#/server/merchant-context";
+} from "#/server/merchant-context-functions";
 import { useNavigation } from "./navigation-context";
-import { m } from "#/paraglide/messages";
 
 export function MerchantContextSelect() {
 	const router = useRouter();
@@ -25,7 +25,6 @@ export function MerchantContextSelect() {
 	const contexts = useQuery({
 		queryKey: ["merchant-contexts"],
 		queryFn: () => listMerchantContextsFn(),
-		enabled: Boolean(merchantContext),
 		staleTime: 60_000,
 	});
 	const select = useMutation({
@@ -38,11 +37,10 @@ export function MerchantContextSelect() {
 			await router.invalidate();
 		},
 	});
-	if (!merchantContext) return null;
 	const selected = contexts.data?.find(
 		(context) =>
-			context.merchantId === merchantContext.merchantId &&
-			context.environmentId === merchantContext.environmentId,
+			context.merchantId === merchantContext?.merchantId &&
+			context.environmentId === merchantContext?.environmentId,
 	);
 	return (
 		<DropdownMenu>
@@ -58,7 +56,9 @@ export function MerchantContextSelect() {
 						{selected?.merchantName ?? m.merchant_context_loading()}
 					</span>
 					<span className="text-muted-foreground text-xs">
-						{environmentLabel(merchantContext.environment)}
+						{merchantContext
+							? environmentLabel(merchantContext.environment)
+							: null}
 					</span>
 					<ChevronDown className="size-4 shrink-0" />
 				</Button>
@@ -69,8 +69,8 @@ export function MerchantContextSelect() {
 				{contexts.data?.map((context) => (
 					<DropdownMenuCheckboxItem
 						checked={
-							context.merchantId === merchantContext.merchantId &&
-							context.environmentId === merchantContext.environmentId
+							context.merchantId === merchantContext?.merchantId &&
+							context.environmentId === merchantContext?.environmentId
 						}
 						disabled={select.isPending}
 						key={context.environmentId}

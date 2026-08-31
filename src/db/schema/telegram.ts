@@ -8,15 +8,30 @@ import {
 import { supportedLocales } from "#/lib/locales";
 import { timestamps } from "./common";
 
-export const telegramBots = sqliteTable("telegram_bots", {
-	id: text("id").primaryKey(),
-	name: text("name").notNull(),
-	tokenEncrypted: text("token_encrypted").notNull(),
-	webhookSecretEncrypted: text("webhook_secret_encrypted").notNull(),
-	username: text("username"),
-	enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
-	...timestamps,
-});
+export const telegramBots = sqliteTable(
+	"telegram_bots",
+	{
+		id: text("id").primaryKey(),
+		merchantId: text("merchant_id").notNull().default("default-merchant"),
+		environmentId: text("environment_id")
+			.notNull()
+			.default("default-production"),
+		name: text("name").notNull(),
+		tokenEncrypted: text("token_encrypted").notNull(),
+		webhookSecretEncrypted: text("webhook_secret_encrypted").notNull(),
+		username: text("username"),
+		enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+		...timestamps,
+	},
+	(table) => [
+		index("telegram_bots_merchant_environment_created_idx").on(
+			table.merchantId,
+			table.environmentId,
+			table.createdAt,
+			table.id,
+		),
+	],
+);
 
 export const telegramNotificationBindings = sqliteTable(
 	"telegram_notification_bindings",

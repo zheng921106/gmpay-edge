@@ -11,7 +11,7 @@ import { authClient } from "#/features/auth/auth-client";
 import { useAuthAnimation } from "#/features/auth/components/auth-animation-context";
 import { registerMerchantFn } from "#/features/auth/server/registration";
 import { m } from "#/paraglide/messages";
-import { selectMerchantContextFn } from "#/server/merchant-context";
+import { selectMerchantContextFn } from "#/server/merchant-context-functions";
 
 export function SignUp() {
 	const navigate = useNavigate();

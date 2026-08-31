@@ -667,7 +667,7 @@ async function seed(db: D1Database) {
 			.bind(now, now),
 		db
 			.prepare(
-				"INSERT INTO payment_ingresses (id, rail_code, name, type, endpoint, priority, enabled, health_status, created_at, updated_at) VALUES ('connection-a', 'tron', 'TRON', 'rpc', 'https://api.trongrid.io', 10, 1, 'healthy', ?, ?)",
+				"INSERT INTO payment_ingresses (id, merchant_id, environment_id, rail_code, name, type, endpoint, priority, enabled, health_status, created_at, updated_at) VALUES ('connection-a', 'default-merchant', 'default-production', 'tron', 'TRON', 'rpc', 'https://api.trongrid.io', 10, 1, 'healthy', ?, ?)",
 			)
 			.bind(now, now),
 		db
@@ -682,7 +682,7 @@ async function seed(db: D1Database) {
 			.bind(now, now),
 		db
 			.prepare(
-				"INSERT INTO receiving_methods (id, name, rail_code, target_type, target_value, normalized_target_value, enabled, created_at, updated_at) VALUES ('11111111-1111-4111-8111-111111111111', 'TRON USDT', 'tron', 'address', 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj', 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj', 1, ?, ?)",
+				"INSERT INTO receiving_methods (id, merchant_id, environment_id, name, rail_code, target_type, target_value, normalized_target_value, enabled, created_at, updated_at) VALUES ('11111111-1111-4111-8111-111111111111', 'default-merchant', 'default-production', 'TRON USDT', 'tron', 'address', 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj', 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj', 1, ?, ?)",
 			)
 			.bind(now, now),
 		db

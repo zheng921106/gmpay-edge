@@ -9,6 +9,10 @@ GMPay 是主商户协议。EPay 只是同一 API 凭证、订单服务、收银�
 每个凭证包含数字 `pid` 和 API Secret。Secret 只在创建或轮换时显示一次。轮换会原地更新凭证：PID 保持不变，后续所有投递使用新 Secret。
 创建交易需要 `orders:create`，查询需要 `orders:read`。两项 Scope 独立校验；数据库中的 Scope 数据无效时会失败关闭。
 
+API 凭证还会绑定到一个商户和一个环境（`sandbox` 或 `production`）。GMPay、EPay 的路径、
+签名和载荷保持不变：已校验的 `pid` 与 Secret 决定租户范围，客户端不应附加商户或环境参数。
+一个凭证无法读取或创建其他商户、其他环境的订单。
+
 ## GMPay 创建交易
 
 向以下地址发送 JSON 或 `application/x-www-form-urlencoded`：

@@ -342,7 +342,14 @@ export function OrdersPage() {
 				},
 			},
 		],
-		[simulate, checkPayment, cancel, resendNotification, merchantWorkspace],
+		[
+			simulate,
+			checkPayment,
+			cancel,
+			resendNotification,
+			merchantWorkspace,
+			development,
+		],
 	);
 	return (
 		<>

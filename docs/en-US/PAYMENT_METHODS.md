@@ -25,6 +25,15 @@ Fiat amounts use integer minor units, asset amounts use integer unit strings
 with explicit decimals, and internal durations use milliseconds. JavaScript
 floating-point money arithmetic is prohibited.
 
+## Merchant environment isolation
+
+Rails, assets, and payment-method capability records are shared catalogs.
+Receiving methods, payment ingress records, API credentials, and their runtime
+availability are isolated by merchant and environment. Each newly created
+merchant environment receives the public payment-ingress catalog with no copied
+API keys or encrypted configuration. A receiving method is available only to
+checkout orders from its own merchant environment.
+
 Receiving-method minimum and maximum order limits use one fixed currency: USD.
 They are stored on the receiving method as USD minor-unit strings and shared by
 all assets attached to that method. Orders in another fiat currency are converted
@@ -77,7 +86,8 @@ unbounded multipliers.
 A fresh installation creates every implemented rail/provider, the built-in asset
 catalog, payment methods, connection templates, common local
 exchange-rate records, and rate-sync settings. It does not invent receiving
-addresses or provider accounts; operators create receiving methods explicitly.
+addresses or provider accounts; merchant members create receiving methods in
+their selected environment explicitly.
 
 1. Review the seeded asset and token contract.
 2. Review the matching connection configuration and its RPC or provider API address.

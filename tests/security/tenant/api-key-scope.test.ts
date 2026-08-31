@@ -1,10 +1,10 @@
 import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { setApiKeyEnabled } from "#/features/api-keys/server/enabled";
 import {
 	authenticateGmpayParameters,
 	signGmpayParameters,
 } from "#/features/api-keys/server/gmpay-signature";
-import { setApiKeyEnabled } from "#/features/api-keys/server/enabled";
 import { listApiKeys } from "#/features/api-keys/server/list";
 import { encryptSecret } from "#/lib/secrets";
 import { applyMigrations } from "../../integration/migrations";

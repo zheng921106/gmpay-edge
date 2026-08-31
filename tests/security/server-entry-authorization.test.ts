@@ -36,7 +36,7 @@ const reviewedPublicServerModules = [
 	"src/features/settings/server/site-brand-entry.ts",
 	"src/features/status/server/assets.ts",
 	"src/features/status/server/functions.ts",
-	"src/server/merchant-context.ts",
+	"src/server/merchant-context-functions.ts",
 ] as const;
 
 const reviewedInputlessPostFunctions = new Set([
@@ -62,6 +62,7 @@ const adminOwnerFunctions = new Set([
 	"settingsAdminContext",
 	"telegramAdminContext",
 	"merchantContext",
+	"receivingMethodContext",
 ]);
 
 const permissionContracts = [
@@ -84,6 +85,7 @@ const permissionContracts = [
 	["merchant:update", ["rotateApiKeyFn", "setApiKeyEnabledFn"]],
 	["merchant:delete", ["revokeApiKeyFn"]],
 	["orders:read", ["listAdminOrdersFn"]],
+	["merchant:read", ["listMerchantOrdersFn"]],
 	["orders:create", ["createDevelopmentOrderFn"]],
 	[
 		"orders:update",
@@ -449,11 +451,19 @@ function permissionSignature(node: ts.Node): string {
 	if (
 		ts.isCallExpression(node) &&
 		ts.isIdentifier(node.expression) &&
-		node.expression.text === "merchantContext"
+		["merchantContext", "requireMerchantAccess"].includes(node.expression.text)
 	) {
-		const permissionMask = merchantPermissionMask(node.arguments[0]);
+		const permissionMask = merchantPermissionMask(
+			node.arguments[node.expression.text === "requireMerchantAccess" ? 1 : 0],
+		);
 		return `merchant:${merchantAction(permissionMask)}`;
 	}
+	if (
+		ts.isCallExpression(node) &&
+		ts.isIdentifier(node.expression) &&
+		node.expression.text === "receivingMethodContext"
+	)
+		return `receiving_methods:${literalText(node.arguments[0])}`;
 	for (const child of node.getChildren()) {
 		const signature = permissionSignatureOrUndefined(child);
 		if (signature) return signature;

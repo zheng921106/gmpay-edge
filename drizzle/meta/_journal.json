@@ -64,6 +64,13 @@
       "when": 1788194003459,
       "tag": "0008_panoramic_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788278400000,
+      "tag": "0010_tenant_telegram_and_order_index",
+      "breakpoints": true
     }
   ]
 }

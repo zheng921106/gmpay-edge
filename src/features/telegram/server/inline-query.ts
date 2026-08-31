@@ -41,6 +41,7 @@ export function parseTelegramDraftQuery(query: string) {
 export async function inlinePaymentOptions(
 	db: D1Database,
 	draft: NonNullable<ReturnType<typeof parseTelegramDraftQuery>>,
+	scope: { merchantId: string; environmentId: string },
 ) {
 	const rows = await db
 		.prepare(
@@ -51,11 +52,13 @@ export async function inlinePaymentOptions(
 			 JOIN payment_assets a ON a.id = link.payment_asset_id
 			 JOIN payment_rails pr ON pr.code = a.rail_code
 			 WHERE rm.enabled = 1 AND rm.target_value != ''
+			 AND rm.merchant_id = ? AND rm.environment_id = ?
 			 AND EXISTS (SELECT 1 FROM payment_ingresses pc WHERE pc.rail_code = a.rail_code
 			  AND pc.enabled = 1 AND (pr.kind IN ('exchange', 'wallet')
 			   OR pc.health_status IN ('healthy', 'degraded')))
 			 ORDER BY rm.sort_order, rm.name LIMIT 50`,
 		)
+		.bind(scope.merchantId, scope.environmentId)
 		.all<{
 			receiving_method_id: string;
 			code: string;

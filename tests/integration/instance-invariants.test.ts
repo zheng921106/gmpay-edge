@@ -34,11 +34,11 @@ describe("D1 instance and deduplication invariants", () => {
 		expect(indexes.results).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					name: "orders_api_key_external_id_uidx",
+					name: "orders_merchant_environment_api_key_external_id_uidx",
 					sql: expect.stringContaining("api_key_id"),
 				}),
 				expect.objectContaining({
-					name: "orders_internal_external_id_uidx",
+					name: "orders_merchant_environment_external_id_uidx",
 					sql: expect.stringContaining("api_key_id"),
 				}),
 			]),
@@ -48,19 +48,34 @@ describe("D1 instance and deduplication invariants", () => {
 		).resolves.toMatchObject({ results: [] });
 	});
 
-	it("scopes external order IDs to their API credential", async () => {
+	it("scopes external order IDs to each merchant environment and API credential", async () => {
 		await insertOrder(db, "order-a", "shared-number");
 		await expect(insertOrder(db, "order-b", "shared-number")).rejects.toThrow();
+		await insertOrder(
+			db,
+			"order-sandbox",
+			"shared-number",
+			undefined,
+			sandboxScope,
+		);
 		await insertOrder(db, "order-key-a", "api-shared", "api-key");
 		await expect(
 			insertOrder(db, "order-key-a-duplicate", "api-shared", "api-key"),
 		).rejects.toThrow();
 		await insertOrder(db, "order-key-b", "api-shared", "api-key-b");
+		await insertOrder(
+			db,
+			"order-key-sandbox",
+			"api-shared",
+			"api-key-sandbox",
+			sandboxScope,
+		);
 	});
 
-	it("keeps idempotency keys instance-wide", async () => {
+	it("keeps idempotency keys unique within a merchant environment", async () => {
 		await insertIdempotency(db, "idem-a", "same-key");
 		await expect(insertIdempotency(db, "idem-b", "same-key")).rejects.toThrow();
+		await insertIdempotency(db, "idem-sandbox", "same-key", sandboxScope);
 	});
 
 	it("deduplicates chain events, webhook events, and order deliveries", async () => {
@@ -126,38 +141,77 @@ async function seed(db: D1Database) {
 			.bind(now, now),
 		db
 			.prepare(
-				"INSERT INTO api_keys (id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('api-key', 'Test', 'gm_test', 'secret', '[]', ?, ?)",
+				"INSERT INTO api_keys (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('api-key', 'default-merchant', 'default-production', 'Test', 'gm_test', 'secret', '[]', ?, ?)",
 			)
 			.bind(now, now),
 		db
 			.prepare(
-				"INSERT INTO api_keys (id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('api-key-b', 'Test B', 'gm_test_b', 'secret', '[]', ?, ?)",
+				"INSERT INTO api_keys (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('api-key-b', 'default-merchant', 'default-production', 'Test B', 'gm_test_b', 'secret', '[]', ?, ?)",
+			)
+			.bind(now, now),
+		db
+			.prepare(
+				"INSERT INTO api_keys (id, merchant_id, environment_id, name, pid, secret_encrypted, scopes, created_at, updated_at) VALUES ('api-key-sandbox', 'default-merchant', 'default-sandbox', 'Test Sandbox', 'gm_test_sandbox', 'secret', '[]', ?, ?)",
 			)
 			.bind(now, now),
 	]);
 }
+
+const sandboxScope = {
+	merchantId: "default-merchant",
+	environmentId: "default-sandbox",
+};
 
 async function insertOrder(
 	db: D1Database,
 	id: string,
 	externalOrderId: string,
 	apiKeyId?: string,
+	scope = {
+		merchantId: "default-merchant",
+		environmentId: "default-production",
+	},
 ) {
 	const now = Date.now();
 	return db
 		.prepare(
-			"INSERT INTO orders (id, external_order_id, api_key_id, status, amount_minor, currency, currency_decimals, payment_asset_id, received_amount_units, expires_at, version, created_at, updated_at) VALUES (?, ?, ?, 'pending', '100', 'USD', 2, 'asset', '0', ?, 0, ?, ?)",
+			"INSERT INTO orders (id, merchant_id, environment_id, external_order_id, api_key_id, status, amount_minor, currency, currency_decimals, payment_asset_id, received_amount_units, expires_at, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'pending', '100', 'USD', 2, 'asset', '0', ?, 0, ?, ?)",
 		)
-		.bind(id, externalOrderId, apiKeyId ?? null, now + 60_000, now, now)
+		.bind(
+			id,
+			scope.merchantId,
+			scope.environmentId,
+			externalOrderId,
+			apiKeyId ?? null,
+			now + 60_000,
+			now,
+			now,
+		)
 		.run();
 }
 
-async function insertIdempotency(db: D1Database, id: string, key: string) {
+async function insertIdempotency(
+	db: D1Database,
+	id: string,
+	key: string,
+	scope = {
+		merchantId: "default-merchant",
+		environmentId: "default-production",
+	},
+) {
 	const now = Date.now();
 	return db
 		.prepare(
-			"INSERT INTO idempotency_keys (id, key, request_hash, expires_at, created_at, updated_at) VALUES (?, ?, 'hash', ?, ?, ?)",
+			"INSERT INTO idempotency_keys (id, merchant_id, environment_id, key, request_hash, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, 'hash', ?, ?, ?)",
 		)
-		.bind(id, key, now + 60_000, now, now)
+		.bind(
+			id,
+			scope.merchantId,
+			scope.environmentId,
+			key,
+			now + 60_000,
+			now,
+			now,
+		)
 		.run();
 }

@@ -14,6 +14,12 @@ in place: the PID remains stable and every later delivery uses the new Secret.
 Grant `orders:create` for transaction creation and `orders:read` for queries.
 Scopes are checked independently and fail closed when stored scope data is invalid.
 
+An API credential is also bound to one merchant and one environment (`sandbox`
+or `production`). GMPay and EPay paths, signatures, and payloads remain
+unchanged: the validated `pid` and Secret determine the tenant scope, so clients
+must not add a merchant or environment parameter. A credential cannot read or
+create orders in another merchant or environment.
+
 ## GMPay create transaction
 
 Send JSON or `application/x-www-form-urlencoded` to:

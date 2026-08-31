@@ -1,5 +1,3 @@
-import { createServerFn } from "@tanstack/react-start";
-import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import type { MerchantEnvironmentContext } from "#/db/schema";
 import {
@@ -198,54 +196,31 @@ export async function loadMerchantSession(
 	return { user, root: Boolean(root) };
 }
 
-const merchantContextSelectionInput = z.object({
-	merchantId: z.uuid(),
-	environmentId: z.uuid(),
-	environment: z.enum(["sandbox", "production"]),
-});
+export async function selectMerchantContext(
+	request: Request,
+	context: MerchantEnvironmentContext,
+) {
+	const env = getCloudflareEnv(request);
+	if (!env.DB) throw new Error("D1 binding DB is unavailable");
+	return validateMerchantContext(
+		env.DB,
+		await loadMerchantSession(request),
+		context,
+	);
+}
 
-export const selectMerchantContextFn = createServerFn({ method: "POST" })
-	.validator((input: z.input<typeof merchantContextSelectionInput>) =>
-		merchantContextSelectionInput.parse(input),
-	)
-	.handler(async ({ data }) => {
-		const request = getRequest();
-		const env = getCloudflareEnv(request);
-		if (!env.DB) throw new Error("D1 binding DB is unavailable");
-		const context = await validateMerchantContext(
-			env.DB,
-			await loadMerchantSession(request),
-			data,
-		);
-		setResponseHeader("set-cookie", await setMerchantContext(request, context));
-		return context;
-	});
-
-export const selectDefaultMerchantContextFn = createServerFn({
-	method: "POST",
-}).handler(async () => {
-	const request = getRequest();
+export async function selectDefaultMerchantContext(request: Request) {
 	const env = getCloudflareEnv(request);
 	if (!env.DB) throw new Error("D1 binding DB is unavailable");
 	const access = await loadMerchantSession(request);
-	const context = await findDefaultMerchantContext(
-		env.DB,
-		access.user.id,
-		access.root,
-	);
-	if (context)
-		setResponseHeader("set-cookie", await setMerchantContext(request, context));
-	return context;
-});
+	return findDefaultMerchantContext(env.DB, access.user.id, access.root);
+}
 
-export const listMerchantContextsFn = createServerFn({ method: "GET" }).handler(
-	async () => {
-		const request = getRequest();
-		const env = getCloudflareEnv(request);
-		if (!env.DB) throw new Error("D1 binding DB is unavailable");
-		return listMerchantContexts(env.DB, await loadMerchantSession(request));
-	},
-);
+export async function listRequestMerchantContexts(request: Request) {
+	const env = getCloudflareEnv(request);
+	if (!env.DB) throw new Error("D1 binding DB is unavailable");
+	return listMerchantContexts(env.DB, await loadMerchantSession(request));
+}
 
 export async function listMerchantContexts(
 	db: RuntimeDatabase,

@@ -12,7 +12,7 @@ import { useAuthAnimation } from "#/features/auth/components/auth-animation-cont
 import { signInErrorMessage } from "#/features/auth/error-message";
 import { cn } from "#/lib/utils";
 import { m } from "#/paraglide/messages";
-import { selectDefaultMerchantContextFn } from "#/server/merchant-context";
+import { selectDefaultMerchantContextFn } from "#/server/merchant-context-functions";
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
 	redirectTo?: string;

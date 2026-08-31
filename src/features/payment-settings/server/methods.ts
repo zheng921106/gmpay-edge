@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import type { MerchantEnvironmentContext } from "#/db/schema";
+import { AccessDeniedError } from "#/features/access/server/access-cache";
+import { requireMerchantAccess } from "#/features/access/server/merchant-access";
 import { systemPermission } from "#/features/access/system-rbac";
 import { paymentSettingsError } from "#/features/payment-settings/errors";
 import {
@@ -11,6 +15,14 @@ import { deleteReceivingMethod } from "#/features/payment-settings/server/delete
 import { parseReceivingProviderConfiguration } from "#/features/payment-settings/server/provider-config";
 import { unitsToDecimal } from "#/lib/money";
 import { encryptSecret } from "#/lib/secrets";
+import { getCloudflareEnv } from "#/server/db.server";
+import {
+	findDefaultMerchantContext,
+	loadMerchantContext,
+	loadMerchantSession,
+	setMerchantContext,
+} from "#/server/merchant-context";
+import { loadRequestRuntimeConfig } from "#/server/runtime-config";
 
 const receivingMethodIdInput = z.object({
 	id: z.string().trim().min(1).max(100),
@@ -18,106 +30,111 @@ const receivingMethodIdInput = z.object({
 
 export const listReceivingMethodsFn = createServerFn({ method: "GET" }).handler(
 	async () => {
-		const { db } = await adminContext(
-			systemPermission("receiving_methods", "read"),
-		);
-		const rows = await db
-			.prepare(
-				`SELECT rm.id, rm.name, rm.enabled,
-				 pa.id AS payment_method_id,
-				 pa.code || ' · ' || pr.name AS payment_method_name,
-				 pa.default_confirmations AS required_confirmations,
-				 rm.min_amount_minor, rm.max_amount_minor, pa.decimals,
-				 rm.sort_order, pa.code AS asset_code,
-				 rm.rail_code, rm.target_type, rm.target_value,
-				 pr.kind AS rail_kind,
-				 pr.name AS rail_name
-				 FROM receiving_methods rm
-				 JOIN receiving_method_assets link ON link.receiving_method_id = rm.id
-				 JOIN payment_assets pa ON pa.id = link.payment_asset_id
-				 JOIN payment_rails pr ON pr.code = rm.rail_code
-				 ORDER BY rm.sort_order, rm.name, pa.code`,
-			)
-			.all<{
-				id: string;
-				name: string;
-				enabled: number;
+		const context = await receivingMethodContext("read");
+		return listReceivingMethods(context.db, context.scope);
+	},
+);
+
+export async function listReceivingMethods(
+	db: D1Database,
+	scope: MerchantEnvironmentContext,
+) {
+	const rows = await db
+		.prepare(
+			`SELECT rm.id, rm.name, rm.enabled,
+			 pa.id AS payment_method_id,
+			 pa.code || ' · ' || pr.name AS payment_method_name,
+			 pa.default_confirmations AS required_confirmations,
+			 rm.min_amount_minor, rm.max_amount_minor, pa.decimals,
+			 rm.sort_order, pa.code AS asset_code,
+			 rm.rail_code, rm.target_type, rm.target_value,
+			 pr.kind AS rail_kind,
+			 pr.name AS rail_name
+			 FROM receiving_methods rm
+			 JOIN receiving_method_assets link ON link.receiving_method_id = rm.id
+			 JOIN payment_assets pa ON pa.id = link.payment_asset_id
+			 JOIN payment_rails pr ON pr.code = rm.rail_code
+			 WHERE rm.merchant_id IS ? AND rm.environment_id IS ?
+			 ORDER BY rm.sort_order, rm.name, pa.code`,
+		)
+		.bind(scope.merchantId, scope.environmentId)
+		.all<{
+			id: string;
+			name: string;
+			enabled: number;
+			payment_method_id: string;
+			payment_method_name: string;
+			required_confirmations: number;
+			min_amount_minor: string | null;
+			max_amount_minor: string | null;
+			decimals: number;
+			sort_order: number;
+			asset_code: string;
+			rail_code: string;
+			target_type: "address" | "account" | "provider";
+			target_value: string;
+			rail_kind: "chain" | "exchange" | "wallet";
+			rail_name: string;
+		}>();
+	const grouped = new Map<
+		string,
+		Omit<
+			(typeof rows.results)[number],
+			| "payment_method_id"
+			| "payment_method_name"
+			| "required_confirmations"
+			| "min_amount_minor"
+			| "max_amount_minor"
+			| "decimals"
+			| "asset_code"
+		> & {
+			min_amount: string | null;
+			max_amount: string | null;
+			assets: Array<{
 				payment_method_id: string;
 				payment_method_name: string;
 				required_confirmations: number;
-				min_amount_minor: string | null;
-				max_amount_minor: string | null;
-				decimals: number;
-				sort_order: number;
 				asset_code: string;
-				rail_code: string;
-				target_type: "address" | "account" | "provider";
-				target_value: string;
-				rail_kind: "chain" | "exchange" | "wallet";
-				rail_name: string;
-			}>();
-		const grouped = new Map<
-			string,
-			Omit<
-				(typeof rows.results)[number],
-				| "payment_method_id"
-				| "payment_method_name"
-				| "required_confirmations"
-				| "min_amount_minor"
-				| "max_amount_minor"
-				| "decimals"
-				| "asset_code"
-			> & {
-				min_amount: string | null;
-				max_amount: string | null;
-				assets: Array<{
-					payment_method_id: string;
-					payment_method_name: string;
-					required_confirmations: number;
-					asset_code: string;
-					decimals: number;
-				}>;
-			}
-		>();
-		for (const row of rows.results) {
-			const current = grouped.get(row.id) ?? {
-				...row,
-				min_amount:
-					row.min_amount_minor === null
-						? null
-						: unitsToDecimal(
-								BigInt(row.min_amount_minor),
-								receivingLimitDecimals,
-							),
-				max_amount:
-					row.max_amount_minor === null
-						? null
-						: unitsToDecimal(
-								BigInt(row.max_amount_minor),
-								receivingLimitDecimals,
-							),
-				assets: [],
-			};
-			current.assets.push({
-				payment_method_id: row.payment_method_id,
-				payment_method_name: row.payment_method_name,
-				required_confirmations: row.required_confirmations,
-				asset_code: row.asset_code,
-				decimals: row.decimals,
-			});
-			grouped.set(row.id, current);
+				decimals: number;
+			}>;
 		}
-		return [...grouped.values()];
-	},
-);
+	>();
+	for (const row of rows.results) {
+		const current = grouped.get(row.id) ?? {
+			...row,
+			min_amount:
+				row.min_amount_minor === null
+					? null
+					: unitsToDecimal(
+							BigInt(row.min_amount_minor),
+							receivingLimitDecimals,
+						),
+			max_amount:
+				row.max_amount_minor === null
+					? null
+					: unitsToDecimal(
+							BigInt(row.max_amount_minor),
+							receivingLimitDecimals,
+						),
+			assets: [],
+		};
+		current.assets.push({
+			payment_method_id: row.payment_method_id,
+			payment_method_name: row.payment_method_name,
+			required_confirmations: row.required_confirmations,
+			asset_code: row.asset_code,
+			decimals: row.decimals,
+		});
+		grouped.set(row.id, current);
+	}
+	return [...grouped.values()];
+}
 
 export const listReceivingMethodOptionsFn = createServerFn({
 	method: "GET",
 }).handler(async () => {
-	const { db } = await adminContext(
-		systemPermission("receiving_methods", "read"),
-	);
-	const methods = await db
+	const context = await receivingMethodContext("read");
+	const methods = await context.db
 		.prepare(
 			`SELECT asset.id, asset.code || ' · ' || rail.name AS name,
 			 asset.rail_code, rail.name AS rail_name,
@@ -164,9 +181,7 @@ export const createReceivingMethodFn = createServerFn({ method: "POST" })
 		createReceivingMethodInput.parse(input),
 	)
 	.handler(async ({ data }) => {
-		const context = await adminContext(
-			systemPermission("receiving_methods", "create"),
-		);
+		const context = await receivingMethodContext("create");
 		const methods = await context.db
 			.prepare(
 				`SELECT asset.id, asset.code AS asset_code, asset.decimals,
@@ -208,13 +223,15 @@ export const createReceivingMethodFn = createServerFn({ method: "POST" })
 			context.db
 				.prepare(
 					`INSERT INTO receiving_methods
-					(id, name, rail_code, target_type, target_value,
-					 normalized_target_value, target_metadata, config_encrypted,
-					 min_amount_minor, max_amount_minor, enabled, created_at, updated_at)
-					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+						(id, merchant_id, environment_id, name, rail_code, target_type, target_value,
+						 normalized_target_value, target_metadata, config_encrypted,
+						 min_amount_minor, max_amount_minor, enabled, created_at, updated_at)
+						 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
 				)
 				.bind(
 					id,
+					context.scope.merchantId,
+					context.scope.environmentId,
 					data.name,
 					first.code,
 					target.type,
@@ -241,17 +258,28 @@ export const createReceivingMethodFn = createServerFn({ method: "POST" })
 			await context.db.batch([
 				context.db
 					.prepare(
-						"UPDATE receiving_methods SET enabled = 1, updated_at = ? WHERE id = ?",
+						`UPDATE receiving_methods SET enabled = 1, updated_at = ?
+						 WHERE id = ? AND merchant_id IS ? AND environment_id IS ?`,
 					)
-					.bind(now, id),
+					.bind(now, id, context.scope.merchantId, context.scope.environmentId),
 				context.db
 					.prepare(
 						`UPDATE payment_ingresses SET reconcile_required_at = ?, updated_at = ?
-						 WHERE enabled = 1 AND network = (
-						  SELECT rail_code FROM receiving_methods WHERE id = ?
+						 WHERE enabled = 1 AND merchant_id IS ? AND environment_id IS ?
+						 AND network = (
+						  SELECT rail_code FROM receiving_methods
+						  WHERE id = ? AND merchant_id IS ? AND environment_id IS ?
 						 ) AND changes() = 1`,
 					)
-					.bind(now, now, id),
+					.bind(
+						now,
+						now,
+						context.scope.merchantId,
+						context.scope.environmentId,
+						id,
+						context.scope.merchantId,
+						context.scope.environmentId,
+					),
 				context.db
 					.prepare(
 						`INSERT INTO audit_logs
@@ -279,8 +307,10 @@ export const createReceivingMethodFn = createServerFn({ method: "POST" })
 			]);
 		} catch (error) {
 			await context.db
-				.prepare("DELETE FROM receiving_methods WHERE id = ?")
-				.bind(id)
+				.prepare(
+					"DELETE FROM receiving_methods WHERE id = ? AND merchant_id IS ? AND environment_id IS ?",
+				)
+				.bind(id, context.scope.merchantId, context.scope.environmentId)
 				.run();
 			throw error;
 		}
@@ -296,15 +326,14 @@ export const updateReceivingMethodFn = createServerFn({ method: "POST" })
 		updateReceivingMethodInput.parse(input),
 	)
 	.handler(async ({ data }) => {
-		const context = await adminContext(
-			systemPermission("receiving_methods", "update"),
-		);
+		const context = await receivingMethodContext("update");
 		const current = await context.db
 			.prepare(
 				`SELECT name, min_amount_minor, max_amount_minor
-				 FROM receiving_methods WHERE id = ?`,
+					 FROM receiving_methods
+					 WHERE id = ? AND merchant_id IS ? AND environment_id IS ?`,
 			)
-			.bind(data.id)
+			.bind(data.id, context.scope.merchantId, context.scope.environmentId)
 			.first<{
 				name: string;
 				min_amount_minor: string | null;
@@ -322,9 +351,18 @@ export const updateReceivingMethodFn = createServerFn({ method: "POST" })
 			context.db
 				.prepare(
 					`UPDATE receiving_methods SET name = ?, min_amount_minor = ?,
-					 max_amount_minor = ?, updated_at = ? WHERE id = ?`,
+					 max_amount_minor = ?, updated_at = ?
+					 WHERE id = ? AND merchant_id IS ? AND environment_id IS ?`,
 				)
-				.bind(data.name, minAmountMinor, maxAmountMinor, now, data.id),
+				.bind(
+					data.name,
+					minAmountMinor,
+					maxAmountMinor,
+					now,
+					data.id,
+					context.scope.merchantId,
+					context.scope.environmentId,
+				),
 			context.db
 				.prepare(
 					`INSERT INTO audit_logs
@@ -361,14 +399,17 @@ export const deleteReceivingMethodFn = createServerFn({ method: "POST" })
 		receivingMethodIdInput.parse(input),
 	)
 	.handler(async ({ data }) => {
-		const context = await adminContext(
-			systemPermission("receiving_methods", "delete"),
+		const context = await receivingMethodContext("delete");
+		return deleteReceivingMethod(
+			context.db,
+			data.id,
+			{
+				actorUserId: context.user.id,
+				requestId: context.request.headers.get("x-request-id"),
+				ipAddress: context.request.headers.get("cf-connecting-ip"),
+			},
+			context.scope,
 		);
-		return deleteReceivingMethod(context.db, data.id, {
-			actorUserId: context.user.id,
-			requestId: context.request.headers.get("x-request-id"),
-			ipAddress: context.request.headers.get("cf-connecting-ip"),
-		});
 	});
 
 function receivingTarget(
@@ -401,24 +442,40 @@ export const setReceivingMethodEnabledFn = createServerFn({ method: "POST" })
 		receivingMethodIdInput.extend({ enabled: z.boolean() }).parse(input),
 	)
 	.handler(async ({ data }) => {
-		const context = await adminContext(
-			systemPermission("receiving_methods", "update"),
-		);
+		const context = await receivingMethodContext("update");
 		const now = Date.now();
 		const [result] = await context.db.batch([
 			context.db
 				.prepare(
-					"UPDATE receiving_methods SET enabled = ?, updated_at = ? WHERE id = ? AND enabled != ?",
+					`UPDATE receiving_methods SET enabled = ?, updated_at = ?
+					 WHERE id = ? AND merchant_id IS ? AND environment_id IS ? AND enabled != ?`,
 				)
-				.bind(data.enabled, now, data.id, data.enabled),
+				.bind(
+					data.enabled,
+					now,
+					data.id,
+					context.scope.merchantId,
+					context.scope.environmentId,
+					data.enabled,
+				),
 			context.db
 				.prepare(
 					`UPDATE payment_ingresses SET reconcile_required_at = ?, updated_at = ?
-						 WHERE enabled = 1 AND network = (
-						  SELECT rail_code FROM receiving_methods WHERE id = ?
+						 WHERE enabled = 1 AND merchant_id IS ? AND environment_id IS ?
+						 AND network = (
+						  SELECT rail_code FROM receiving_methods
+						  WHERE id = ? AND merchant_id IS ? AND environment_id IS ?
 						 ) AND changes() = 1`,
 				)
-				.bind(now, now, data.id),
+				.bind(
+					now,
+					now,
+					context.scope.merchantId,
+					context.scope.environmentId,
+					data.id,
+					context.scope.merchantId,
+					context.scope.environmentId,
+				),
 		]);
 		const changed = (result?.meta.changes ?? 0) === 1;
 		if (changed)
@@ -440,3 +497,68 @@ export const setReceivingMethodEnabledFn = createServerFn({ method: "POST" })
 				.run();
 		return { ...data, changed };
 	});
+
+const merchantPermissionMasks = {
+	read: 1,
+	create: 2,
+	update: 4,
+	delete: 8,
+} as const;
+
+type ReceivingMethodAction = keyof typeof merchantPermissionMasks;
+
+async function receivingMethodContext(action: ReceivingMethodAction) {
+	try {
+		const context = await adminContext(
+			systemPermission("receiving_methods", action),
+		);
+		return {
+			...context,
+			scope: await selectedMerchantContext(context.request),
+		};
+	} catch (error) {
+		if (!(error instanceof AccessDeniedError) || error.status !== 403)
+			throw error;
+		const request = getRequest();
+		const access = await requireMerchantAccess(request, {
+			module: "merchant",
+			permissionMask: merchantPermissionMasks[action],
+		});
+		const env = getCloudflareEnv(request);
+		if (!env.DB) throw new Error("D1 binding DB is unavailable");
+		const runtime = await loadRequestRuntimeConfig(
+			request,
+			env.DB,
+			new URL(request.url).origin,
+		);
+		if (!runtime.integrationConfigSecret)
+			throw new Error("INTEGRATION_CONFIG_SECRET is not configured");
+		return {
+			db: env.DB,
+			env,
+			request,
+			runtime,
+			user: access,
+			scope: access.context,
+		};
+	}
+}
+
+async function selectedMerchantContext(request: Request) {
+	const session = await loadMerchantSession(request);
+	try {
+		return await loadMerchantContext(request, session);
+	} catch (error) {
+		if (!(error instanceof AccessDeniedError) || !session.root) throw error;
+		const env = getCloudflareEnv(request);
+		if (!env.DB) throw new Error("D1 binding DB is unavailable");
+		const context = await findDefaultMerchantContext(
+			env.DB,
+			session.user.id,
+			true,
+		);
+		if (!context) throw error;
+		setResponseHeader("set-cookie", await setMerchantContext(request, context));
+		return context;
+	}
+}

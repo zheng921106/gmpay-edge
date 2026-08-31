@@ -4,16 +4,22 @@ import { requireMerchantAccess } from "#/features/access/server/merchant-access"
 import { getAdminPermissions } from "#/features/access/server/require-admin";
 import { isInstalled } from "#/features/installation/server/install";
 import { getDb } from "#/server/db.server";
+import {
+	loadMerchantContext,
+	merchantContextCookieName,
+} from "#/server/merchant-context";
 
 export const loadAdminBootstrap = createServerOnlyFn(
 	async (request: Request) => {
 		if (!(await isInstalled(getDb(request))))
 			return { installed: false } as const;
 		try {
+			const access = await getAdminPermissions(request);
 			return {
 				installed: true,
-				access: await getAdminPermissions(request),
+				access,
 				merchant: null,
+				merchantContext: await loadSystemMerchantContext(request, access),
 			} as const;
 		} catch (error) {
 			if (error instanceof AccessDeniedError && error.status === 401)
@@ -43,5 +49,28 @@ async function loadMerchantBootstrap(request: Request) {
 	} catch (error) {
 		if (error instanceof AccessDeniedError) return null;
 		throw error;
+	}
+}
+
+async function loadSystemMerchantContext(
+	request: Request,
+	access: Awaited<ReturnType<typeof getAdminPermissions>>,
+) {
+	if (!request.headers.get("cookie")?.includes(`${merchantContextCookieName}=`))
+		return null;
+	try {
+		return await loadMerchantContext(request, {
+			user: {
+				id: access.id,
+				name: access.name,
+				email: access.email,
+				enabled: access.enabled,
+				updatedAt: access.updatedAt,
+			},
+			root: access.root,
+		});
+	} catch (error) {
+		if (!(error instanceof AccessDeniedError)) throw error;
+		return null;
 	}
 }

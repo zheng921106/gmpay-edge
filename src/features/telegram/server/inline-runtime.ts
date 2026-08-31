@@ -43,6 +43,10 @@ type TelegramChatMemberUpdated = NonNullable<TelegramUpdate["my_chat_member"]>;
 type TelegramUser = TelegramInlineQuery["from"];
 type TelegramChat = TelegramMessage["chat"];
 type TelegramChatMember = TelegramChatMemberUpdated["new_chat_member"];
+type TelegramMerchantScope = {
+	merchantId: string;
+	environmentId: string;
+};
 
 type OrderRow = {
 	id: string;
@@ -96,18 +100,20 @@ export async function answerInlineQuery(
 		return;
 	}
 	if (draftInput) {
+		const scope = await loadTelegramScope(context.db, context.botId);
 		const matchingOrders = await findOrders(
 			context.db,
 			context.botId,
 			String(query.from.id),
 			query.query,
 			10,
+			scope,
 		);
 		if (matchingOrders.length) {
 			await answerOrderResults(context, query, locale, matchingOrders);
 			return;
 		}
-		const options = await inlinePaymentOptions(context.db, draftInput);
+		const options = await inlinePaymentOptions(context.db, draftInput, scope);
 		await telegramCall(context.token, "answerInlineQuery", {
 			inline_query_id: query.id,
 			cache_time: 0,
@@ -140,12 +146,14 @@ export async function answerInlineQuery(
 		});
 		return;
 	}
+	const scope = await loadTelegramScope(context.db, context.botId);
 	const orders = await findOrders(
 		context.db,
 		context.botId,
 		String(query.from.id),
 		query.query,
 		10,
+		scope,
 	);
 	await answerOrderResults(context, query, locale, orders);
 }
@@ -198,6 +206,7 @@ export async function createChosenInlineOrder(
 	if (!input) return;
 	const telegramUserId = String(chosen.from.id);
 	const locale = telegramLocale(chosen.from);
+	const scope = await loadTelegramScope(context.db, context.botId);
 	const binding = await context.db
 		.prepare(
 			"SELECT id FROM telegram_notification_bindings WHERE bot_id = ? AND target_type = 'private' AND target_id = ? AND enabled = 1 LIMIT 1",
@@ -217,13 +226,15 @@ export async function createChosenInlineOrder(
 	const claim = await context.db
 		.prepare(
 			`INSERT INTO idempotency_keys
-			 (id, key, request_hash, expires_at, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?)
-			 ON CONFLICT(key) DO NOTHING
+			 (id, merchant_id, environment_id, key, request_hash, expires_at, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			 ON CONFLICT(merchant_id, environment_id, key) DO NOTHING
 			 RETURNING id`,
 		)
 		.bind(
 			crypto.randomUUID(),
+			scope.merchantId,
+			scope.environmentId,
 			replayKey,
 			chosen.result_id,
 			now + 7 * 24 * 60 * 60 * 1000,
@@ -234,9 +245,9 @@ export async function createChosenInlineOrder(
 	if (!claim) {
 		const replay = await context.db
 			.prepare(
-				"SELECT response_status, response_body FROM idempotency_keys WHERE key = ? LIMIT 1",
+				"SELECT response_status, response_body FROM idempotency_keys WHERE merchant_id = ? AND environment_id = ? AND key = ? LIMIT 1",
 			)
-			.bind(replayKey)
+			.bind(scope.merchantId, scope.environmentId, replayKey)
 			.first<{
 				response_status: number | null;
 				response_body: string | null;
@@ -245,7 +256,7 @@ export async function createChosenInlineOrder(
 		const order = parseStoredInlineOrder(replay.response_body);
 		if (!order) return;
 		await sendCreatedOrder(context, chosen, order, locale);
-		await markInlineNotificationDelivered(context.db, replayKey);
+		await markInlineNotificationDelivered(context.db, replayKey, scope);
 		return;
 	}
 	try {
@@ -257,12 +268,19 @@ export async function createChosenInlineOrder(
 				metadata: { source: "telegram_inline", telegramUserId },
 			},
 			context.baseUrl,
+			scope,
 		);
 		await context.db
 			.prepare(
-				"UPDATE idempotency_keys SET response_status = 201, response_body = ?, updated_at = ? WHERE key = ?",
+				"UPDATE idempotency_keys SET response_status = 201, response_body = ?, updated_at = ? WHERE merchant_id = ? AND environment_id = ? AND key = ?",
 			)
-			.bind(JSON.stringify(order), Date.now(), replayKey)
+			.bind(
+				JSON.stringify(order),
+				Date.now(),
+				scope.merchantId,
+				scope.environmentId,
+				replayKey,
+			)
 			.run();
 		await context.db
 			.prepare(
@@ -276,18 +294,20 @@ export async function createChosenInlineOrder(
 			)
 			.run();
 		await sendCreatedOrder(context, chosen, order, locale);
-		await markInlineNotificationDelivered(context.db, replayKey);
+		await markInlineNotificationDelivered(context.db, replayKey, scope);
 	} catch (error) {
 		const stored = await context.db
 			.prepare(
-				"SELECT response_status FROM idempotency_keys WHERE key = ? LIMIT 1",
+				"SELECT response_status FROM idempotency_keys WHERE merchant_id = ? AND environment_id = ? AND key = ? LIMIT 1",
 			)
-			.bind(replayKey)
+			.bind(scope.merchantId, scope.environmentId, replayKey)
 			.first<{ response_status: number | null }>();
 		if (stored?.response_status === 201) throw error;
 		await context.db
-			.prepare("DELETE FROM idempotency_keys WHERE key = ?")
-			.bind(replayKey)
+			.prepare(
+				"DELETE FROM idempotency_keys WHERE merchant_id = ? AND environment_id = ? AND key = ?",
+			)
+			.bind(scope.merchantId, scope.environmentId, replayKey)
 			.run();
 		await deliverInlineMessage(
 			context,
@@ -348,12 +368,16 @@ async function deliverInlineMessage(
 	);
 }
 
-async function markInlineNotificationDelivered(db: D1Database, key: string) {
+async function markInlineNotificationDelivered(
+	db: D1Database,
+	key: string,
+	scope: TelegramMerchantScope,
+) {
 	await db
 		.prepare(
-			"UPDATE idempotency_keys SET response_status = 200, updated_at = ? WHERE key = ?",
+			"UPDATE idempotency_keys SET response_status = 200, updated_at = ? WHERE merchant_id = ? AND environment_id = ? AND key = ?",
 		)
-		.bind(Date.now(), key)
+		.bind(Date.now(), scope.merchantId, scope.environmentId, key)
 		.run();
 }
 
@@ -419,12 +443,14 @@ export async function answerMessage(
 			});
 		return;
 	}
+	const scope = await loadTelegramScope(context.db, context.botId);
 	const orders = await findOrders(
 		context.db,
 		context.botId,
 		String(message.from?.id ?? message.chat.id),
 		search,
 		5,
+		scope,
 	);
 	await telegramCall(context.token, "sendMessage", {
 		chat_id: message.chat.id,
@@ -561,6 +587,27 @@ function telegramTargetLifecycleAudit(
 		);
 }
 
+async function loadTelegramScope(
+	db: D1Database,
+	botId: string,
+): Promise<TelegramMerchantScope> {
+	const scope = await db
+		.prepare(
+			"SELECT merchant_id, environment_id FROM telegram_bots WHERE id = ? LIMIT 1",
+		)
+		.bind(botId)
+		.first<{ merchant_id: string; environment_id: string }>();
+	if (!scope)
+		return {
+			merchantId: "default-merchant",
+			environmentId: "default-production",
+		};
+	return {
+		merchantId: scope.merchant_id,
+		environmentId: scope.environment_id,
+	};
+}
+
 function telegramMembershipIsActive(member: TelegramChatMember) {
 	return (
 		member.status === "creator" ||
@@ -652,12 +699,14 @@ export async function answerCallback(
 	const [, action, orderId] = match;
 	if (!(action && orderId)) return;
 	const chatId = callback.message?.chat.id ?? callback.from.id;
+	const scope = await loadTelegramScope(context.db, context.botId);
 	const [order] = await findOrders(
 		context.db,
 		context.botId,
 		String(callback.from.id),
 		orderId,
 		1,
+		scope,
 	);
 	await telegramCall(context.token, "answerCallbackQuery", {
 		callback_query_id: callback.id,
@@ -667,7 +716,13 @@ export async function answerCallback(
 		show_alert: false,
 	});
 	if (order && action.toLowerCase() === "check")
-		await enqueuePaymentCheck(context, order.id, callback.from.id, locale);
+		await enqueuePaymentCheck(
+			context,
+			order.id,
+			callback.from.id,
+			locale,
+			scope,
+		);
 	if (order)
 		await telegramCall(context.token, "sendMessage", {
 			chat_id: chatId,
@@ -695,6 +750,7 @@ async function findOrders(
 	telegramUserId: string,
 	query: string,
 	limit: number,
+	scope: TelegramMerchantScope,
 ) {
 	const normalized = query.trim();
 	if (!normalized) return [];
@@ -710,10 +766,19 @@ async function findOrders(
 			 JOIN order_payment_snapshots ops ON ops.order_id = o.id
 			 WHERE tb.bot_id = ? AND tb.target_type = 'private'
 			 AND tb.target_id = ? AND tb.enabled = 1
+			 AND o.merchant_id = ? AND o.environment_id = ?
 			 AND (o.id = ? OR o.external_order_id LIKE ? ESCAPE '\\')
 			 ORDER BY o.created_at DESC LIMIT ?`,
 		)
-		.bind(botId, telegramUserId, normalized, search, limit)
+		.bind(
+			botId,
+			telegramUserId,
+			scope.merchantId,
+			scope.environmentId,
+			normalized,
+			search,
+			limit,
+		)
 		.all<
 			Omit<OrderRow, "amount" | "paymentAmount"> & {
 				amount_minor: string;
@@ -761,6 +826,7 @@ async function enqueuePaymentCheck(
 	orderId: string,
 	telegramUserId: number,
 	locale: TelegramLocale,
+	scope: TelegramMerchantScope,
 ) {
 	if (!context.paymentQueue) return;
 	const replayKey = `telegram:check:${context.botId}:${context.update.update_id}`;
@@ -768,13 +834,15 @@ async function enqueuePaymentCheck(
 	const claim = await context.db
 		.prepare(
 			`INSERT INTO idempotency_keys
-			 (id, key, request_hash, expires_at, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?)
-			 ON CONFLICT(key) DO NOTHING
+			 (id, merchant_id, environment_id, key, request_hash, expires_at, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			 ON CONFLICT(merchant_id, environment_id, key) DO NOTHING
 			 RETURNING id`,
 		)
 		.bind(
 			crypto.randomUUID(),
+			scope.merchantId,
+			scope.environmentId,
 			replayKey,
 			orderId,
 			now + 24 * 60 * 60 * 1000,
@@ -788,17 +856,20 @@ async function enqueuePaymentCheck(
 			`SELECT ops.receiving_method_id
 			 FROM orders o
 			 JOIN order_payment_snapshots ops ON ops.order_id = o.id
-			 WHERE o.id = ? AND o.status IN ('pending', 'confirming', 'partially_paid')
+			 WHERE o.id = ? AND o.merchant_id = ? AND o.environment_id = ?
+			 AND o.status IN ('pending', 'confirming', 'partially_paid')
 			 LIMIT 1`,
 		)
-		.bind(orderId)
+		.bind(orderId, scope.merchantId, scope.environmentId)
 		.first<{
 			receiving_method_id: string;
 		}>();
 	if (!target) {
 		await context.db
-			.prepare("DELETE FROM idempotency_keys WHERE key = ?")
-			.bind(replayKey)
+			.prepare(
+				"DELETE FROM idempotency_keys WHERE merchant_id = ? AND environment_id = ? AND key = ?",
+			)
+			.bind(scope.merchantId, scope.environmentId, replayKey)
 			.run();
 		return;
 	}
@@ -824,14 +895,16 @@ async function enqueuePaymentCheck(
 				),
 			context.db
 				.prepare(
-					"UPDATE idempotency_keys SET response_status = 202, updated_at = ? WHERE key = ?",
+					"UPDATE idempotency_keys SET response_status = 202, updated_at = ? WHERE merchant_id = ? AND environment_id = ? AND key = ?",
 				)
-				.bind(now, replayKey),
+				.bind(now, scope.merchantId, scope.environmentId, replayKey),
 		]);
 	} catch (error) {
 		await context.db
-			.prepare("DELETE FROM idempotency_keys WHERE key = ?")
-			.bind(replayKey)
+			.prepare(
+				"DELETE FROM idempotency_keys WHERE merchant_id = ? AND environment_id = ? AND key = ?",
+			)
+			.bind(scope.merchantId, scope.environmentId, replayKey)
 			.run();
 		throw error;
 	}

@@ -15,16 +15,17 @@
 [![Vitest](https://img.shields.io/badge/tests-Vitest-6E9F18.svg?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![Locales: 6](https://img.shields.io/badge/locales-6-7C3AED.svg?style=flat-square)](project.inlang/settings.json)
 
-GMPay Edge is a self-hosted, single-tenant cryptocurrency payment gateway for
+GMPay Edge is a self-hosted multi-merchant cryptocurrency payment gateway for
 Cloudflare Workers or a Bun/Nitro Docker container. One deployment provides
-signed merchant APIs, a responsive checkout, payment operations, dynamic
-role-based access control, durable Webhook delivery, scheduled processing, and
-Telegram automation.
+signed merchant APIs, isolated sandbox and production environments, a
+responsive checkout, payment operations, dynamic role-based access control,
+durable Webhook delivery, scheduled processing, and Telegram automation.
 
 It is designed for operators who want to retain control of their payment
 infrastructure while using read-only chain, exchange, and wallet integrations.
-Merchants are external API clients; operators and administrators work through
-the protected `/admin` application.
+Each registration creates an active merchant with sandbox and production
+environments. Merchant members work through the protected `/admin` application;
+platform administrators can operate across merchants.
 
 > [!IMPORTANT]
 > GMPay Edge is under active development. A built-in integration means the
@@ -39,6 +40,8 @@ the protected `/admin` application.
 - Detect inbound payments through read-only Binance, OKX, and OKPay adapters.
 - Expose the signed GMPay merchant protocol with JSON and form input.
 - Support EPay at the API boundary without maintaining a second order model.
+- Create sandbox and production API keys per merchant without changing GMPay or
+  EPay endpoint paths; key authentication determines the tenant scope.
 - Preserve immutable payment snapshots and process order state transitions and
   payment accounting centrally and idempotently.
 - Deliver merchant callbacks through a durable Queue-backed outbox with retry

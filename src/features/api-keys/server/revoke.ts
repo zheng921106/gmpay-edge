@@ -1,5 +1,5 @@
-import { DomainError } from "#/lib/domain-error";
 import type { ApiKeyScope } from "#/features/api-keys/server/list";
+import { DomainError } from "#/lib/domain-error";
 
 export async function revokeApiKeyCredential(
 	database: D1Database,

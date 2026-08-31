@@ -2,9 +2,19 @@
 
 简体中文 · [English](../en-US/DEPLOYMENT.md)
 
-本清单用于将一个单租户 GMPay Edge 实例部署到 Cloudflare Workers 或 Bun/Nitro。
-运营人员统一使用 `/admin`；商户只通过
-带签名的 GMPay 主协议或其 EPay 边界适配接入。
+本清单用于将一个多商户 GMPay Edge 实例部署到 Cloudflare Workers 或 Bun/Nitro。
+运营人员和商户成员统一使用 `/admin`；商户系统只通过带签名的 GMPay 主协议或其 EPay
+边界适配接入。
+
+## 商户租户模型
+
+首次安装仍由一位 root 用户完成。之后的公开商户注册会在一个事务中创建启用的商户、Owner
+成员关系，以及启用的 `sandbox`、`production` 环境。后台的签名上下文决定成员当前选择的
+商户和环境；平台 root 用户可以选择任意启用的商户。
+
+API 路径和请求格式保持不变。每个 API Key 只属于一个商户环境，认证会在订单、支付选项、
+回调或 Webhook 操作之前推导其范围。不要在 GMPay 或 EPay 请求中额外传递租户标识。
+已有数据会回填到默认商户的生产环境，因此已有 API Key 和收银台 URL 在迁移后仍然有效。
 
 ## 部署方式
 

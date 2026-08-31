@@ -33,7 +33,11 @@ export const Route = createFileRoute("/admin")({
 			) {
 				throw redirect({ to: "/403" });
 			}
-			return { systemAccess, user: systemAccess };
+			return {
+				systemAccess,
+				merchantContext: bootstrap.merchantContext,
+				user: systemAccess,
+			};
 		}
 
 		const merchantAccess = bootstrap.merchant;
@@ -56,6 +60,7 @@ export const Route = createFileRoute("/admin")({
 		return {
 			systemAccess: null,
 			merchantAccess,
+			merchantContext: merchantAccess.context,
 			user: merchantAccess.user,
 		};
 	},
@@ -63,7 +68,8 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminLayoutRoute() {
-	const { systemAccess, merchantAccess, user } = Route.useLoaderData();
+	const { systemAccess, merchantAccess, merchantContext, user } =
+		Route.useLoaderData();
 	return (
 		<DashboardLayout
 			navigation={
@@ -73,7 +79,7 @@ function AdminLayoutRoute() {
 			}
 			permissions={systemAccess?.permissions ?? []}
 			merchantPermissions={merchantAccess?.permissions ?? []}
-			merchantContext={merchantAccess?.context}
+			merchantContext={merchantContext ?? undefined}
 			user={user}
 		/>
 	);

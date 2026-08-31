@@ -2,10 +2,25 @@
 
 [简体中文](../zh-CN/DEPLOYMENT.md) · English
 
-This checklist deploys one single-tenant GMPay Edge instance on Cloudflare
-Workers or Bun/Nitro. Operators use
-`/admin`; merchants integrate only through the signed GMPay protocol or its
-EPay boundary adapter.
+This checklist deploys one multi-merchant GMPay Edge instance on Cloudflare
+Workers or Bun/Nitro. Operators and merchant members use `/admin`; merchant
+systems integrate through the signed GMPay protocol or its EPay boundary
+adapter.
+
+## Merchant tenancy
+
+The first installation is still initialized by one root user. Later public
+merchant registration creates an active merchant, an owner membership, and
+active `sandbox` and `production` environments in one transaction. The signed
+admin context selects a member's merchant and environment; platform root users
+can select any active merchant.
+
+API paths and request formats do not change. Each API key belongs to exactly
+one merchant environment, and authentication derives that scope before an order,
+payment option, callback, or Webhook operation. Do not send a tenant identifier
+in a GMPay or EPay request. Existing data is backfilled into the default
+merchant's production environment, so existing API keys and checkout URLs stay
+valid after the migration.
 
 ## Deployment paths
 

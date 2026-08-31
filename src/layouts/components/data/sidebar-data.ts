@@ -18,15 +18,15 @@ import {
 	Webhook,
 } from "lucide-react";
 import {
+	hasMerchantPermission,
+	type MerchantPermissionGrant,
+} from "#/features/access/merchant-rbac";
+import {
 	hasSystemPermission,
 	type SystemPermission,
 	type SystemPermissionGrant,
 	systemPermission,
 } from "#/features/access/system-rbac";
-import {
-	hasMerchantPermission,
-	type MerchantPermissionGrant,
-} from "#/features/access/merchant-rbac";
 import { m } from "#/paraglide/messages";
 import type { SidebarData } from "../types";
 
@@ -526,6 +526,12 @@ export function merchantSidebarData(
 						icon: WalletCards,
 					},
 					{
+						id: "receiving-methods",
+						title: m.receiving_methods_title(),
+						url: "/admin/receiving-methods",
+						icon: RadioTower,
+					},
+					{
 						id: "api-keys",
 						title: m.api_keys_title(),
 						url: "/admin/api-keys",
@@ -553,6 +559,7 @@ export function canAccessMerchantPath(
 		hasMerchantPermission(permissions, "merchant", 1) &&
 		(normalized === "/admin" ||
 			normalized === "/admin/orders" ||
+			normalized === "/admin/receiving-methods" ||
 			normalized === "/admin/api-keys" ||
 			normalized === "/admin/merchant/members")
 	);
@@ -568,6 +575,8 @@ export function permissionForAdminPath(
 		.flatMap((module) => module.entries);
 	const exact = entries.find((candidate) => candidate.url === normalized);
 	if (exact) return exact.permission;
+	if (normalized === "/admin/merchant/members")
+		return systemPermission("users", "read");
 	if (/^\/admin\/webhooks\/[^/]+$/.test(normalized))
 		return systemPermission("webhooks", "read");
 	return undefined;
