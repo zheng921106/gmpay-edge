@@ -44,3 +44,34 @@ export type RedactedProtocolSnapshot = {
 	status?: number;
 	durationMs?: number;
 };
+
+export type MerchantAccessContext = {
+	userId: string;
+	merchantId: string;
+	environmentId: string;
+	environment: PaymentEnvironmentCode;
+	requestOrigin: string;
+};
+
+export type PaymentTestRuntime = {
+	DB: D1Database;
+	WEBHOOK_QUEUE?: unknown;
+	PAYMENT_QUEUE?: unknown;
+};
+
+export type PaymentTestPreflight = {
+	ready: true;
+	environment: PaymentEnvironmentCode;
+	apiKey: { id: string; pid: string; secretEncrypted: string };
+	receivingMethod: { id: string; targetValue: string };
+	asset: { id: string; code: string; decimals: number };
+	rail: { code: string; networkClass: PaymentNetworkClass };
+};
+
+export type PaymentTestStartResult = {
+	runId: string;
+	orderId: string | null;
+	status: PaymentTestStatus;
+	confirmationRequired: boolean;
+	confirmationToken?: string;
+};

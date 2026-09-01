@@ -139,7 +139,9 @@ export async function allocateReceivingMethodAndSnapshot(
 				 AND rm.merchant_id IS ? AND rm.environment_id IS ?
 				 AND connection.enabled = 1
 				 AND connection.merchant_id IS ? AND connection.environment_id IS ?
-				 AND (rail.kind IN ('exchange', 'wallet') OR connection.health_status = 'healthy')
+				 AND (rail.network_class = 'simulated'
+				  OR rail.kind IN ('exchange', 'wallet')
+				  OR connection.health_status = 'healthy')
 			 ORDER BY connection.priority, connection.id LIMIT 1`,
 		)
 		.bind(
