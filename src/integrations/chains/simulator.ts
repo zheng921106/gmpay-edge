@@ -9,6 +9,26 @@ import type {
 const configSchema = z.object({});
 export type SimulatorConfig = z.infer<typeof configSchema>;
 
+export function createSimulatorTransaction(input: {
+	hash: string;
+	blockHash: string;
+	from: string;
+	to: string;
+	assetCode: string;
+	amountUnits: bigint;
+	blockNumber: bigint;
+	confirmations: number;
+	timestamp: Date;
+	success: boolean;
+	canonical?: boolean;
+}): NormalizedTransaction {
+	return {
+		network: "simulator",
+		eventIndex: 0,
+		...input,
+	};
+}
+
 export class SimulatorAdapter implements PaymentAdapter<SimulatorConfig> {
 	readonly id = "simulator";
 	readonly network = "simulator" as const;

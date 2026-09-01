@@ -14,7 +14,12 @@ export type WebhookDelivery = {
 	endpoint: WebhookEndpoint;
 };
 
-export type PaymentRuntime = Pick<Env, "DB" | "WEBHOOK_QUEUE">;
+export type PaymentRuntime = {
+	DB: D1Database;
+	WEBHOOK_QUEUE: {
+		send(message: WebhookQueueMessage): Promise<unknown>;
+	};
+};
 
 export async function matchingWebhookEndpoints(
 	db: D1Database,
