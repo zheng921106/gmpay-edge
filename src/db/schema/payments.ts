@@ -7,6 +7,15 @@ import {
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import {
+	paymentNetworkClasses,
+	paymentTestCallbackModes,
+	paymentTestExpectedOutcomes,
+	paymentTestModes,
+	paymentTestProtocols,
+	paymentTestStatuses,
+	type RedactedProtocolSnapshot,
+} from "#/features/payment-testing/types";
 import { users } from "./auth";
 import { timestamps } from "./common";
 import { merchantEnvironments, merchants } from "./tenant";
@@ -42,14 +51,30 @@ export const apiKeys = sqliteTable(
 	],
 );
 
-export const paymentRails = sqliteTable("payment_rails", {
-	code: text("code").primaryKey(),
-	name: text("name").notNull(),
-	kind: text("kind", { enum: ["chain", "exchange", "wallet"] }).notNull(),
-	adapter: text("adapter").notNull(),
-	metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
-	...timestamps,
-});
+export const paymentRails = sqliteTable(
+	"payment_rails",
+	{
+		code: text("code").primaryKey(),
+		name: text("name").notNull(),
+		kind: text("kind", { enum: ["chain", "exchange", "wallet"] }).notNull(),
+		networkClass: text("network_class", {
+			enum: paymentNetworkClasses,
+		})
+			.notNull()
+			.default("mainnet"),
+		adapter: text("adapter").notNull(),
+		metadata: text("metadata", { mode: "json" }).$type<
+			Record<string, unknown>
+		>(),
+		...timestamps,
+	},
+	(table) => [
+		check(
+			"payment_rails_network_class_check",
+			sql`${table.networkClass} IN ('mainnet', 'testnet', 'simulated')`,
+		),
+	],
+);
 
 export const paymentAssets = sqliteTable(
 	"payment_assets",
@@ -592,5 +617,115 @@ export const rateLimitCounters = sqliteTable(
 			table.windowStart,
 		),
 		index("rate_limit_counters_expires_idx").on(table.expiresAt),
+	],
+);
+
+export const paymentTestRuns = sqliteTable(
+	"payment_test_runs",
+	{
+		id: text("id").primaryKey(),
+		merchantId: text("merchant_id")
+			.notNull()
+			.references(() => merchants.id, { onDelete: "cascade" }),
+		environmentId: text("environment_id")
+			.notNull()
+			.references(() => merchantEnvironments.id, { onDelete: "cascade" }),
+		createdByUserId: text("created_by_user_id")
+			.notNull()
+			.references(() => users.id),
+		protocol: text("protocol", { enum: paymentTestProtocols }).notNull(),
+		paymentMode: text("payment_mode", {
+			enum: paymentTestModes,
+		}).notNull(),
+		apiKeyId: text("api_key_id")
+			.notNull()
+			.references(() => apiKeys.id),
+		externalOrderId: text("external_order_id").notNull(),
+		orderId: text("order_id").references(() => orders.id),
+		callbackMode: text("callback_mode", {
+			enum: paymentTestCallbackModes,
+		}).notNull(),
+		callbackDestinationSnapshot: text("callback_destination_snapshot", {
+			mode: "json",
+		})
+			.$type<{ kind: "builtin" | "custom"; display: string }>()
+			.notNull(),
+		status: text("status", {
+			enum: paymentTestStatuses,
+		})
+			.notNull()
+			.default("ready"),
+		expectedOutcome: text("expected_outcome", {
+			enum: paymentTestExpectedOutcomes,
+		})
+			.notNull()
+			.default("paid"),
+		idempotencyKey: text("idempotency_key").notNull(),
+		scenario: text("scenario"),
+		scenarioStep: integer("scenario_step").notNull().default(0),
+		requestSnapshot: text("request_snapshot", {
+			mode: "json",
+		}).$type<RedactedProtocolSnapshot>(),
+		responseSnapshot: text("response_snapshot", {
+			mode: "json",
+		}).$type<RedactedProtocolSnapshot>(),
+		confirmationNonceHash: text("confirmation_nonce_hash"),
+		confirmationExpiresAt: integer("confirmation_expires_at", {
+			mode: "timestamp_ms",
+		}),
+		confirmationConsumedAt: integer("confirmation_consumed_at", {
+			mode: "timestamp_ms",
+		}),
+		callbackTokenHash: text("callback_token_hash"),
+		callbackTokenExpiresAt: integer("callback_token_expires_at", {
+			mode: "timestamp_ms",
+		}),
+		failureCode: text("failure_code"),
+		startedAt: integer("started_at", { mode: "timestamp_ms" }),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+		...timestamps,
+	},
+	(table) => [
+		check(
+			"payment_test_runs_protocol_check",
+			sql`${table.protocol} IN ('gmpay', 'epay')`,
+		),
+		check(
+			"payment_test_runs_mode_check",
+			sql`${table.paymentMode} IN ('simulator', 'testnet', 'live')`,
+		),
+		check(
+			"payment_test_runs_status_check",
+			sql`${table.status} IN ('ready', 'running', 'passed', 'failed', 'cancelled', 'expired')`,
+		),
+		check(
+			"payment_test_runs_snapshot_size_check",
+			sql`(${table.requestSnapshot} IS NULL OR length(${table.requestSnapshot}) <= 65536)
+				AND (${table.responseSnapshot} IS NULL OR length(${table.responseSnapshot}) <= 65536)`,
+		),
+		uniqueIndex("payment_test_runs_scope_idempotency_uidx").on(
+			table.merchantId,
+			table.environmentId,
+			table.protocol,
+			table.apiKeyId,
+			table.idempotencyKey,
+		),
+		uniqueIndex("payment_test_runs_order_uidx")
+			.on(table.orderId)
+			.where(sql`${table.orderId} IS NOT NULL`),
+		index("payment_test_runs_history_idx").on(
+			table.merchantId,
+			table.environmentId,
+			table.createdAt,
+			table.id,
+		),
+		index("payment_test_runs_active_idx")
+			.on(table.merchantId, table.environmentId, table.createdAt, table.id)
+			.where(sql`${table.status} IN ('ready', 'running')`),
+		index("payment_test_runs_retention_idx")
+			.on(table.completedAt, table.id)
+			.where(
+				sql`${table.status} IN ('passed', 'failed', 'cancelled', 'expired')`,
+			),
 	],
 );

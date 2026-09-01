@@ -616,6 +616,27 @@ describe("hot list query plans", () => {
 		);
 		expect(details).not.toContain("USE TEMP B-TREE FOR ORDER BY");
 	});
+
+	it("uses scope-leading indexes for payment test history and active runs", async () => {
+		const history = await explain(
+			db,
+			`SELECT id FROM payment_test_runs
+			 WHERE merchant_id = 'merchant' AND environment_id = 'environment'
+			 ORDER BY created_at DESC, id DESC LIMIT 25`,
+		);
+		const active = await explain(
+			db,
+			`SELECT id FROM payment_test_runs
+			 WHERE merchant_id = 'merchant' AND environment_id = 'environment'
+			 AND status IN ('ready', 'running')
+			 ORDER BY created_at DESC, id DESC LIMIT 25`,
+		);
+
+		expect(history).toContain("payment_test_runs_history_idx");
+		expect(active).toContain("payment_test_runs_active_idx");
+		expect(history).not.toContain("USE TEMP B-TREE");
+		expect(active).not.toContain("USE TEMP B-TREE");
+	});
 });
 
 async function explain(db: D1Database, query: string) {

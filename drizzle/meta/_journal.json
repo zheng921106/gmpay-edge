@@ -71,6 +71,13 @@
       "when": 1788278400000,
       "tag": "0010_tenant_telegram_and_order_index",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1788282000000,
+      "tag": "0011_payment_test_center",
+      "breakpoints": true
     }
   ]
 }

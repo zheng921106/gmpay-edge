@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+	check,
 	index,
 	integer,
 	sqliteTable,
@@ -9,7 +10,7 @@ import {
 import type { ProviderPaymentTrigger } from "#/features/payments/types";
 import type { WebhookRequestSnapshot } from "#/features/webhooks/types";
 import { timestamps } from "./common";
-import { apiKeys, orders, paymentIngresses } from "./payments";
+import { apiKeys, orders, paymentIngresses, paymentTestRuns } from "./payments";
 
 export const inboundWebhookReceipts = sqliteTable(
 	"inbound_webhook_receipts",
@@ -240,5 +241,54 @@ export const webhookAttempts = sqliteTable(
 			table.attempt,
 		),
 		index("webhook_attempts_retention_idx").on(table.attemptedAt, table.id),
+	],
+);
+
+export const paymentTestCallbackReceipts = sqliteTable(
+	"payment_test_callback_receipts",
+	{
+		id: text("id").primaryKey(),
+		runId: text("run_id")
+			.notNull()
+			.references(() => paymentTestRuns.id, { onDelete: "cascade" }),
+		eventId: text("event_id")
+			.notNull()
+			.references(() => webhookEvents.id),
+		deliveryId: text("delivery_id")
+			.notNull()
+			.references(() => webhookDeliveries.id),
+		attempt: integer("attempt").notNull(),
+		signatureStatus: text("signature_status", {
+			enum: ["valid", "invalid"],
+		}).notNull(),
+		requestHeaders: text("request_headers", { mode: "json" })
+			.$type<Record<string, string>>()
+			.notNull(),
+		requestBody: text("request_body", { mode: "json" })
+			.$type<Record<string, unknown>>()
+			.notNull(),
+		responseAcknowledgement: text("response_acknowledgement").notNull(),
+		receivedAt: integer("received_at", { mode: "timestamp_ms" }).notNull(),
+		...timestamps,
+	},
+	(table) => [
+		uniqueIndex("payment_test_callback_receipts_delivery_attempt_uidx").on(
+			table.deliveryId,
+			table.attempt,
+		),
+		index("payment_test_callback_receipts_run_received_idx").on(
+			table.runId,
+			table.receivedAt,
+			table.id,
+		),
+		index("payment_test_callback_receipts_retention_idx").on(
+			table.receivedAt,
+			table.id,
+		),
+		check(
+			"payment_test_callback_receipts_size_check",
+			sql`length(${table.requestHeaders}) <= 16384
+				AND length(${table.requestBody}) <= 65536`,
+		),
 	],
 );
