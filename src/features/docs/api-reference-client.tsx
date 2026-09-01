@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "#/context/theme-provider";
+import { MerchantGuide } from "#/features/docs/merchant-guide";
 import { m } from "#/paraglide/messages";
 
 const scalarScriptUrl =
@@ -27,7 +28,7 @@ const customCss = `
 		--scalar-sidebar-color-2: var(--muted-foreground);
 		--scalar-sidebar-color-active: var(--primary);
 		--scalar-sidebar-item-active-background: color-mix(in oklab, var(--primary) 10%, transparent);
-		--refs-sidebar-height: calc(100svh - 8rem - 2px);
+		--refs-sidebar-height: calc(100svh - 10rem - 2px);
 	}
 	.references-layout { min-height: 100%; max-width: 100%; }
 	.scalar-app { color-scheme: inherit; }
@@ -126,16 +127,41 @@ export function ApiReferenceClientPage() {
 	}, [resolvedTheme]);
 
 	return (
-		<section className="container flex h-[calc(100svh-4rem)] min-h-0 px-4 py-6 sm:py-8">
-			<div
-				className={`gmpay-api-reference ${resolvedTheme === "dark" ? "dark-mode" : "light-mode"} relative mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-x-hidden overflow-y-auto rounded-2xl border shadow-sm`}
-			>
-				<div ref={mountRef} className="h-full" />
-				{loadFailed ? (
-					<div className="absolute inset-0 grid place-items-center bg-background p-6 text-center text-muted-foreground">
-						{m.docs_api_reference_load_failed()}
-					</div>
-				) : null}
+		<section className="container min-h-[calc(100svh-4rem)] px-4 py-6 sm:py-8">
+			<div className="mx-auto w-full max-w-7xl">
+				<nav
+					aria-label={m.docs_api_reference_title()}
+					className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-b pb-3 text-sm"
+				>
+					<a
+						className="font-medium text-primary underline-offset-4 hover:underline"
+						href="#merchant-api-guide"
+					>
+						{m.docs_merchant_guide_link()}
+					</a>
+					<a
+						className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+						href="#openapi-reference"
+					>
+						{m.docs_openapi_reference_link()}
+					</a>
+				</nav>
+
+				<div id="merchant-api-guide" className="mb-10 border-b pb-10">
+					<MerchantGuide />
+				</div>
+
+				<div
+					id="openapi-reference"
+					className={`gmpay-api-reference ${resolvedTheme === "dark" ? "dark-mode" : "light-mode"} relative h-[calc(100svh-10rem)] min-h-[36rem] w-full overflow-x-hidden overflow-y-auto rounded-2xl border shadow-sm`}
+				>
+					<div ref={mountRef} className="h-full" />
+					{loadFailed ? (
+						<div className="absolute inset-0 grid place-items-center bg-background p-6 text-center text-muted-foreground">
+							{m.docs_api_reference_load_failed()}
+						</div>
+					) : null}
+				</div>
 			</div>
 		</section>
 	);

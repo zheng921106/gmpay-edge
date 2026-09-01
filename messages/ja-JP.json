@@ -1166,6 +1166,8 @@
   "docs_api_reference_title": "TOGETHER9 API リファレンス",
   "docs_api_reference_description": "加盟店 REST API と Webhook プロトコル",
   "docs_api_reference_load_failed": "API リファレンスを読み込めませんでした。しばらくしてからもう一度お試しください。",
+  "docs_merchant_guide_link": "加盟店導入ガイド",
+  "docs_openapi_reference_link": "インタラクティブ OpenAPI",
   "webhooks_endpoint_alchemy": "Alchemy アドレスアクティビティ",
   "webhooks_event_sources_title": "決済イベントプッシュ",
   "payment_ingress_event_push": "決済イベントプッシュ",

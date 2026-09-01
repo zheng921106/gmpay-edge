@@ -167,6 +167,31 @@ The EPay adapter signs its GET callback query with the same Secret and requires
 plain text `ok`. EPay field names and `trade_status` exist only at this boundary;
 the database and application continue using the GMPay Edge order state machine.
 
+### EPay MD5 signature
+
+1. Exclude `sign` and `sign_type`.
+2. Exclude null and empty-string values.
+3. Sort field names in ASCII order and join `key=value` pairs with `&`.
+4. Append the API Secret to the canonical string.
+5. Calculate MD5 and emit 32-character lowercase hexadecimal text.
+
+```bash
+curl --fail-with-body \
+  'https://pay.example.com/payments/epay/v1/order/create-transaction/submit.php?pid=100000000001&money=12.50&out_trade_no=invoice-1001&notify_url=https%3A%2F%2Fshop.example.com%2Fpayment%2Fepay%2Fnotify&type=USDT.tron&sign=<lowercase-md5>&sign_type=MD5'
+```
+
+Mobile or legacy EPay clients can use `/payments/epay/v1/order/create-transaction/mapi.php`; its `data` uses the EPay-compatible fields `code`, `msg`, `trade_no`, `payurl`, `qrcode`, `img`, and `param`. Query an order with `/payments/epay/v1/order/create-transaction/api.php?act=order`, selecting exactly one of `trade_no` or `out_trade_no`.
+
+EPay callback fields are sent to the immutable `notify_url` saved at order creation:
+
+| Field | Meaning |
+| --- | --- |
+| `pid`, `trade_no`, `out_trade_no` | Credential, gateway order, and shop order IDs |
+| `type`, `name`, `money` | Payment method, order name, and amount |
+| `trade_status` | `WAIT_BUYER_PAY`, `TRADE_SUCCESS`, `TRADE_REFUNDED`, or `TRADE_CLOSED` |
+| `param` | Optional opaque shop context |
+| `sign`, `sign_type` | MD5 signature and the `MD5` marker |
+
 ## Errors and idempotency
 
 Responses use `status_code`, `message`, `data`, and `request_id`. An external
@@ -193,3 +218,53 @@ but returns `10002` rather than silently creating or replacing an order.
 
 The authoritative contract is [`public/openapi.yaml`](../../public/openapi.yaml)
 and is rendered at `/docs`.
+
+## Shop Integration Handoff
+
+### Prepare the environment
+
+Create an API credential for the target merchant environment in `/admin` and store its `pid` and Secret. Configure and enable a receiving address, then wait for the connection to report healthy. Sandbox uses the simulator or testnet; production uses the merchant's production address. The credential binds the merchant and environment, so clients must not send `merchant_id` or `environment_id`.
+
+### Create orders server-side
+
+Create orders only from your shop backend. Generate a unique `order_id`, sign with the Secret, and persist `trade_id`, `payment_url`, amount, expiry, and `request_id`; send only `payment_url` to the browser.
+
+### PHP GMPay create and verification
+
+```php
+<?php
+function gmpaySign(array $params, string $secret): string {
+    unset($params['signature']);
+    $params = array_filter($params, static fn($v) => $v !== null && $v !== '');
+    ksort($params, SORT_STRING);
+    $pairs = [];
+    foreach ($params as $key => $value) $pairs[] = $key . '=' . (string)$value;
+    return hash_hmac('sha256', implode('&', $pairs), $secret);
+}
+$body = ['pid'=>'100000000001', 'order_id'=>'invoice-1001', 'currency'=>'USD', 'amount'=>'12.50', 'notify_url'=>'https://shop.example.com/payment/gmpay/notify'];
+$body['signature'] = gmpaySign($body, getenv('GMPAY_API_SECRET'));
+```
+
+### PHP EPay create and verification
+
+```php
+<?php
+$params = ['pid'=>'100000000001', 'money'=>'12.50', 'out_trade_no'=>'invoice-1001', 'notify_url'=>'https://shop.example.com/payment/epay/notify', 'type'=>'USDT.tron'];
+ksort($params, SORT_STRING);
+$pairs = [];
+foreach ($params as $key => $value) if ($value !== null && $value !== '') $pairs[] = $key . '=' . $value;
+$params['sign'] = md5(implode('&', $pairs) . getenv('EPAY_API_SECRET'));
+```
+
+### Callback loop
+
+GMPay callbacks are POST JSON; EPay callbacks are GET query parameters. Verify the signature, persist the order transition in a transaction, process idempotently, and return HTTP 200 plain-text `ok` (`success` is also accepted for EPay). Duplicate events must not ship twice; timeouts and non-200 responses are retried.
+
+### Go-live checks
+
+- Complete creation, checkout, simulated payment, callback, duplicate callback, and query in sandbox.
+- Confirm `orders:create` and `orders:read` scopes on the production credential.
+- Use a public HTTPS callback and constant-time signature comparison.
+- Use decimal strings for money and log `request_id`, `trade_id`, and event IDs.
+- Never log Secrets, raw signature input, or private keys.
+- Human-verify amount and network before any production payment test.

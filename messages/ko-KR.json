@@ -1166,6 +1166,8 @@
   "docs_api_reference_title": "TOGETHER9 API 참조",
   "docs_api_reference_description": "가맹점 REST API 및 Webhook 프로토콜",
   "docs_api_reference_load_failed": "API 참조를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.",
+  "docs_merchant_guide_link": "가맹점 연동 가이드",
+  "docs_openapi_reference_link": "대화형 OpenAPI",
   "webhooks_endpoint_alchemy": "Alchemy 주소 활동",
   "webhooks_event_sources_title": "결제 이벤트 푸시",
   "payment_ingress_event_push": "결제 이벤트 푸시",

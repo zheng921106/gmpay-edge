@@ -1166,6 +1166,8 @@
 	"docs_api_reference_title": "TOGETHER9 API 參考",
 	"docs_api_reference_description": "商戶 REST API 與 Webhook 協議",
 	"docs_api_reference_load_failed": "無法載入 API 參考，請稍後再試。",
+	"docs_merchant_guide_link": "商城串接指南",
+	"docs_openapi_reference_link": "互動式 OpenAPI",
 	"webhooks_endpoint_alchemy": "Alchemy 地址活動",
 	"webhooks_event_sources_title": "支付事件推送",
 	"payment_ingress_event_push": "支付事件推送",

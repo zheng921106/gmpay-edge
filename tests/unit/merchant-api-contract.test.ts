@@ -10,6 +10,7 @@ describe("TOGETHER9 and EPay OpenAPI contract", () => {
 			?.post as Operation;
 
 		expect(document.info.title).toBe("TOGETHER9 Merchant API");
+		expect(document.info.description).toContain("multi-merchant");
 		expect(create.summary).toBe("Create a TOGETHER9 transaction");
 		expect(document.components.schemas).toHaveProperty(
 			"Together9CreateRequest",
@@ -36,6 +37,14 @@ describe("TOGETHER9 and EPay OpenAPI contract", () => {
 			"application/x-www-form-urlencoded",
 		]);
 		expect(gmpay.callbacks?.orderNotification).toBeTruthy();
+		expect(gmpay.requestBody.content["application/json"]).toBeTruthy();
+		const createRequest = requiredSchema(
+			document.components.schemas,
+			"Together9CreateRequest",
+		);
+		expect(createRequest.properties.payment_type).toMatchObject({
+			type: "string",
+		});
 		const query = document.paths["/payments/gmpay/v1/order/query"]
 			?.get as Operation;
 		expect(query.parameters?.map((parameter) => parameter.name).sort()).toEqual(
@@ -72,11 +81,15 @@ describe("TOGETHER9 and EPay OpenAPI contract", () => {
 		expect((epay?.post as Operation).requestBody.content).toHaveProperty(
 			"application/x-www-form-urlencoded",
 		);
+		expect((epay?.get as Operation).callbacks?.epayNotification).toBeTruthy();
+		expect((epay?.post as Operation).callbacks?.epayNotification).toBeTruthy();
 
 		const mapi =
 			document.paths["/payments/epay/v1/order/create-transaction/mapi.php"];
 		expect(mapi).toHaveProperty("get");
 		expect(mapi).toHaveProperty("post");
+		expect((mapi?.get as Operation).callbacks?.epayNotification).toBeTruthy();
+		expect((mapi?.post as Operation).callbacks?.epayNotification).toBeTruthy();
 		expect((mapi?.get as Operation).responses["200"]).toMatchObject({
 			content: {
 				"application/json": {
@@ -236,7 +249,7 @@ async function openApi() {
 		"utf8",
 	);
 	return parse(source) as {
-		info: { title: string };
+		info: { title: string; description: string };
 		paths: Record<string, Record<string, unknown>>;
 		components: {
 			schemas: Record<

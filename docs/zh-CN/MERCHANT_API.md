@@ -135,6 +135,31 @@ EPay 客户端可使用 GET Query 或表单 POST：
 
 EPay GET 回调使用同一 Secret 签名并要求纯文本 `ok`。EPay 字段和 `trade_status` 只存在于边界，数据库仍使用 GMPay Edge 状态机。
 
+### EPay MD5 签名
+
+1. 排除 `sign` 和 `sign_type`；
+2. 排除 `null` 和空字符串；
+3. 按字段名 ASCII 升序排序并以 `key=value`、`&` 拼接；
+4. 在拼接结果末尾追加 API Secret；
+5. 计算 MD5 并输出 32 位小写十六进制文本。
+
+```bash
+curl --fail-with-body \
+  'https://pay.example.com/payments/epay/v1/order/create-transaction/submit.php?pid=100000000001&money=12.50&out_trade_no=invoice-1001&notify_url=https%3A%2F%2Fshop.example.com%2Fpayment%2Fepay%2Fnotify&type=USDT.tron&sign=<lowercase-md5>&sign_type=MD5'
+```
+
+移动端或传统 EPay 客户端可使用 `/payments/epay/v1/order/create-transaction/mapi.php`，其 `data` 为 EPay 兼容字段 `code`、`msg`、`trade_no`、`payurl`、`qrcode`、`img`、`param`。订单查询使用 `/payments/epay/v1/order/create-transaction/api.php?act=order`，并在 `trade_no` 与 `out_trade_no` 中选择一个查询条件。
+
+EPay 回调字段如下，回调地址由创建订单时的 `notify_url` 固定保存：
+
+| 字段 | 说明 |
+| --- | --- |
+| `pid`、`trade_no`、`out_trade_no` | 凭证、网关订单号、商城订单号 |
+| `type`、`name`、`money` | 支付方式、订单名称、订单金额 |
+| `trade_status` | `WAIT_BUYER_PAY`、`TRADE_SUCCESS`、`TRADE_REFUNDED` 或 `TRADE_CLOSED` |
+| `param` | 商城透传上下文（可选） |
+| `sign`、`sign_type` | MD5 签名与 `MD5` 标识 |
+
 ## 错误与幂等
 
 响应包含 `status_code`、`message`、`data` 和 `request_id`。外部订单号在创建它的 API 凭证范围内唯一；同一凭证重试相同订单号不会创建第二个订单，不同凭证可以使用各自的业务编号。
@@ -151,3 +176,53 @@ EPay GET 回调使用同一 Secret 签名并要求纯文本 `ok`。EPay 字段�
 | `500` | 网关发生未预期错误；排查时使用 `request_id` |
 
 超时应视为未知结果。重试相同 `order_id` 不会重复创建，但会返回 `10002`，不会静默替换订单。权威 OpenAPI 合约为 [`public/openapi.yaml`](../../public/openapi.yaml)，运行时在 `/docs` 渲染。
+
+## 商城接入交付清单
+
+### 准备环境
+
+在 `/admin` 为目标商户环境创建 API 凭证并保存 `pid` 与 Secret；在“收款方式”中配置并启用收款地址，等待连接健康状态为“健康”。沙盒使用模拟器或测试网，生产必须使用商户生产收款地址。凭证由 `pid` 绑定商户和环境，客户端不要传 `merchant_id` 或 `environment_id`。
+
+### 服务端创建订单
+
+订单创建必须在商城后端完成。后端生成唯一 `order_id`，使用 Secret 签名并保存 `trade_id`、`payment_url`、金额、有效期和 `request_id`；前端只接收 `payment_url` 并跳转。
+
+### PHP GMPay 创建与验签
+
+```php
+<?php
+function gmpaySign(array $params, string $secret): string {
+    unset($params['signature']);
+    $params = array_filter($params, static fn($v) => $v !== null && $v !== '');
+    ksort($params, SORT_STRING);
+    $pairs = [];
+    foreach ($params as $key => $value) $pairs[] = $key . '=' . (string)$value;
+    return hash_hmac('sha256', implode('&', $pairs), $secret);
+}
+$body = ['pid'=>'100000000001', 'order_id'=>'invoice-1001', 'currency'=>'USD', 'amount'=>'12.50', 'notify_url'=>'https://shop.example.com/payment/gmpay/notify'];
+$body['signature'] = gmpaySign($body, getenv('GMPAY_API_SECRET'));
+```
+
+### PHP EPay 创建与验签
+
+```php
+<?php
+$params = ['pid'=>'100000000001', 'money'=>'12.50', 'out_trade_no'=>'invoice-1001', 'notify_url'=>'https://shop.example.com/payment/epay/notify', 'type'=>'USDT.tron'];
+ksort($params, SORT_STRING);
+$pairs = [];
+foreach ($params as $key => $value) if ($value !== null && $value !== '') $pairs[] = $key . '=' . $value;
+$params['sign'] = md5(implode('&', $pairs) . getenv('EPAY_API_SECRET'));
+```
+
+### 回调闭环
+
+GMPay 回调为 POST JSON，EPay 回调为 GET 查询参数；两者都必须验签、事务落库、幂等处理，然后返回 HTTP 200 纯文本 `ok`（EPay 也接受 `success`）。重复事件不得重复发货，网络超时或非 200 会触发重试。
+
+### 上线前检查
+
+- 沙盒完成创建、收银台、模拟支付、回调、重复回调和查询；
+- 生产凭证具备 `orders:create`、`orders:read` Scope；
+- 回调地址为公网 HTTPS，验签使用常量时间比较；
+- 金额使用十进制字符串，记录 `request_id`、`trade_id` 和事件 ID；
+- 不记录 Secret、完整签名原文或私钥；
+- 生产支付测试必须人工核对金额和网络。

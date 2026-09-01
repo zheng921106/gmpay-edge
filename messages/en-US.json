@@ -1166,6 +1166,8 @@
 	"docs_api_reference_title": "TOGETHER9 API Reference",
 	"docs_api_reference_description": "Merchant REST API and webhook protocol",
 	"docs_api_reference_load_failed": "The API reference could not be loaded. Please try again later.",
+	"docs_merchant_guide_link": "Merchant integration guide",
+	"docs_openapi_reference_link": "Interactive OpenAPI",
 	"webhooks_endpoint_alchemy": "Alchemy address activity",
 	"webhooks_event_sources_title": "Payment event push",
 	"payment_ingress_event_push": "Payment event push",

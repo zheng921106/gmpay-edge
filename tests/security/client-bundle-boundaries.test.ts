@@ -28,6 +28,7 @@ describe("client bundle boundaries", () => {
 			"src/features/telegram/pages/form-fields.tsx",
 		]);
 		expect(runtimeImportOwners("react-markdown")).toEqual([
+			"src/features/docs/merchant-guide.tsx",
 			"src/features/telegram/pages/form-fields.tsx",
 		]);
 		expect(runtimeImportOwners("gsap")).toEqual([

@@ -3,10 +3,12 @@ info:
   title: TOGETHER9 Merchant API
   version: 1.0.0
   description: >-
-    TOGETHER9 is a single-deployment, single-tenant gateway. TOGETHER9 is the
-    primary merchant protocol, and EPay is a compatibility adapter over the
-    same credential, order service, checkout, payment processor, and Webhook
-    outbox. Internal operations use /admin and are outside this merchant API.
+    TOGETHER9 is a multi-merchant gateway. Each API credential is bound to one
+    merchant and one environment (sandbox or production); the validated PID
+    determines the tenant scope. TOGETHER9 is the primary merchant protocol,
+    and EPay is a compatibility adapter over the same credential, order
+    service, checkout, payment processor, and Webhook outbox. Internal
+    operations use /admin and are outside this merchant API.
 servers:
   - url: https://pay.example.com
 paths:
@@ -101,6 +103,8 @@ paths:
         "500": { $ref: "#/components/responses/GatewayError" }
         "502": { $ref: "#/components/responses/GatewayError" }
         "503": { $ref: "#/components/responses/GatewayError" }
+      callbacks:
+        epayNotification: { $ref: "#/components/callbacks/EpayQueryNotification" }
     post:
       operationId: createEpayTransactionByForm
       summary: Create an EPay-compatible transaction
@@ -121,6 +125,8 @@ paths:
         "500": { $ref: "#/components/responses/GatewayError" }
         "502": { $ref: "#/components/responses/GatewayError" }
         "503": { $ref: "#/components/responses/GatewayError" }
+      callbacks:
+        epayNotification: { $ref: "#/components/callbacks/EpayFormNotification" }
   /payments/epay/v1/order/create-transaction/mapi.php:
     get:
       operationId: createEpayMApiTransactionByQuery
@@ -150,6 +156,8 @@ paths:
         "500": { $ref: "#/components/responses/EpayError" }
         "502": { $ref: "#/components/responses/EpayError" }
         "503": { $ref: "#/components/responses/EpayError" }
+      callbacks:
+        epayNotification: { $ref: "#/components/callbacks/EpayQueryNotification" }
     post:
       operationId: createEpayMApiTransactionByForm
       summary: Create an EPay transaction and return a Pro-compatible response
@@ -170,6 +178,8 @@ paths:
         "500": { $ref: "#/components/responses/EpayError" }
         "502": { $ref: "#/components/responses/EpayError" }
         "503": { $ref: "#/components/responses/EpayError" }
+      callbacks:
+        epayNotification: { $ref: "#/components/callbacks/EpayFormNotification" }
   /payments/epay/v1/order/create-transaction/api.php:
     get:
       operationId: queryEpayTransaction
@@ -194,6 +204,51 @@ paths:
         "429": { $ref: "#/components/responses/EpayError" }
         "500": { $ref: "#/components/responses/EpayError" }
 components:
+  callbacks:
+    EpayQueryNotification:
+      '{$request.query.notify_url}':
+        get:
+          summary: EPay order notification
+          description: Verify the lowercase MD5 signature over sorted non-empty fields plus the API Secret. Return plain text ok with HTTP 200.
+          parameters:
+            - { $ref: "#/components/parameters/EpayCallbackPid" }
+            - { $ref: "#/components/parameters/EpayCallbackTradeNo" }
+            - { $ref: "#/components/parameters/EpayCallbackOrderNo" }
+            - { $ref: "#/components/parameters/EpayCallbackType" }
+            - { $ref: "#/components/parameters/EpayCallbackName" }
+            - { $ref: "#/components/parameters/EpayCallbackMoney" }
+            - { $ref: "#/components/parameters/EpayCallbackStatus" }
+            - { $ref: "#/components/parameters/EpayCallbackParam" }
+            - { $ref: "#/components/parameters/EpayCallbackSign" }
+            - { $ref: "#/components/parameters/EpayCallbackSignType" }
+          responses:
+            "200":
+              description: Plain text ok acknowledgement
+              content:
+                text/plain:
+                  schema: { type: string, enum: [ok, success] }
+    EpayFormNotification:
+      '{$request.body#/notify_url}':
+        get:
+          summary: EPay order notification
+          description: Verify the lowercase MD5 signature over sorted non-empty fields plus the API Secret. Return plain text ok with HTTP 200.
+          parameters:
+            - { $ref: "#/components/parameters/EpayCallbackPid" }
+            - { $ref: "#/components/parameters/EpayCallbackTradeNo" }
+            - { $ref: "#/components/parameters/EpayCallbackOrderNo" }
+            - { $ref: "#/components/parameters/EpayCallbackType" }
+            - { $ref: "#/components/parameters/EpayCallbackName" }
+            - { $ref: "#/components/parameters/EpayCallbackMoney" }
+            - { $ref: "#/components/parameters/EpayCallbackStatus" }
+            - { $ref: "#/components/parameters/EpayCallbackParam" }
+            - { $ref: "#/components/parameters/EpayCallbackSign" }
+            - { $ref: "#/components/parameters/EpayCallbackSignType" }
+          responses:
+            "200":
+              description: Plain text ok acknowledgement
+              content:
+                text/plain:
+                  schema: { type: string, enum: [ok, success] }
   parameters:
     EpayPid: { name: pid, in: query, required: true, schema: { type: string } }
     EpayMoney: { name: money, in: query, required: true, schema: { type: string, pattern: "^(?!0(?:\\.0+)?$)(?:0|[1-9]\\d*)(?:\\.\\d{1,8})?$" } }
@@ -207,6 +262,16 @@ components:
     EpayDevice: { name: device, in: query, required: false, schema: { type: string, maxLength: 64 } }
     EpaySign: { name: sign, in: query, required: true, schema: { type: string, pattern: "^[0-9a-f]{32}$" } }
     EpaySignType: { name: sign_type, in: query, required: false, schema: { const: MD5 } }
+    EpayCallbackPid: { name: pid, in: query, required: true, schema: { type: string } }
+    EpayCallbackTradeNo: { name: trade_no, in: query, required: true, schema: { type: string, maxLength: 128 } }
+    EpayCallbackOrderNo: { name: out_trade_no, in: query, required: true, schema: { type: string, maxLength: 128 } }
+    EpayCallbackType: { name: type, in: query, required: true, schema: { type: string } }
+    EpayCallbackName: { name: name, in: query, required: true, schema: { type: string, maxLength: 500 } }
+    EpayCallbackMoney: { name: money, in: query, required: true, schema: { type: string } }
+    EpayCallbackStatus: { name: trade_status, in: query, required: true, schema: { type: string, enum: [TRADE_SUCCESS, TRADE_REFUNDED, WAIT_BUYER_PAY, TRADE_CLOSED] } }
+    EpayCallbackParam: { name: param, in: query, required: false, schema: { type: string, maxLength: 500 } }
+    EpayCallbackSign: { name: sign, in: query, required: true, schema: { type: string, pattern: "^[0-9a-f]{32}$" } }
+    EpayCallbackSignType: { name: sign_type, in: query, required: false, schema: { const: MD5 } }
   responses:
     GatewayError:
       description: Gateway error
@@ -242,6 +307,7 @@ components:
         notify_url: { type: string, format: uri, pattern: "^https://" }
         redirect_url: { type: string, format: uri, pattern: "^https://" }
         name: { type: string, maxLength: 500 }
+        payment_type: { type: string, maxLength: 32, description: Optional compatibility field accepted for clients that send a payment type; use token and network to select a concrete receiving method. }
         signature: { type: string, pattern: "^[0-9a-f]{64}$" }
       example:
         pid: "100000000001"
