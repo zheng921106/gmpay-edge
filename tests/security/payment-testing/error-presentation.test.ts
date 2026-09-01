@@ -31,6 +31,13 @@ describe("payment test error presentation", () => {
 		).toBe(m.payment_test_operation_failed());
 	});
 
+	it.each([
+		[new Error("Invalid request"), m.payment_test_error_invalid_input()],
+		[new Error("Forbidden"), m.payment_test_error_permission_denied()],
+	] as const)("maps safe server message %s when the error code is unavailable", (error, message) => {
+		expect(paymentTestOperationErrorMessage(error)).toBe(message);
+	});
+
 	it("passes payment test failures to the reviewed error mapper", async () => {
 		const page = await readFile(
 			new URL(
