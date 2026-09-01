@@ -16,6 +16,8 @@ export type ExchangeRateQuote = {
 };
 
 const dollarParityAssets = new Set(["USD", "USDT", "USDC"]);
+const stableBridgeAssets = ["USDT", "USDC"] as const;
+const stableBridgeDecimals = 6;
 
 export async function quoteUsdAmountMinor(
 	db: D1Database,
@@ -30,6 +32,47 @@ export async function quoteUsdAmountMinor(
 }
 
 export async function quoteWithExchangeRate(
+	db: D1Database,
+	input: {
+		amount: string;
+		currency: string;
+		paymentAsset: string;
+		assetDecimals: number;
+		now?: number;
+	},
+): Promise<ExchangeRateQuote | null> {
+	const direct = await quoteDirectExchangeRate(db, input);
+	if (direct) return direct;
+	if (dollarParityAssets.has(input.paymentAsset)) return null;
+
+	for (const bridgeAsset of stableBridgeAssets) {
+		const bridge = await quoteDirectExchangeRate(db, {
+			...input,
+			paymentAsset: bridgeAsset,
+			assetDecimals: stableBridgeDecimals,
+		});
+		if (!bridge) continue;
+		const payment = await quoteDirectExchangeRate(db, {
+			amount: bridge.paymentAmount,
+			currency: bridgeAsset,
+			paymentAsset: input.paymentAsset,
+			assetDecimals: input.assetDecimals,
+			now: input.now,
+		});
+		if (!payment) continue;
+		return {
+			...payment,
+			source:
+				bridge.source === "stable_parity"
+					? payment.source
+					: `${bridge.source}+${payment.source}`,
+			observedAt: Math.min(bridge.observedAt, payment.observedAt),
+		};
+	}
+	return null;
+}
+
+async function quoteDirectExchangeRate(
 	db: D1Database,
 	input: {
 		amount: string;

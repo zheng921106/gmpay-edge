@@ -110,6 +110,24 @@ describe("receiving method allocation and immutable snapshots", () => {
 		});
 	});
 
+	it("bridges a crypto-to-USD quote through stablecoin parity", async () => {
+		await expect(
+			quoteWithExchangeRate(db, {
+				amount: "1.00",
+				currency: "USD",
+				paymentAsset: "TRX",
+				assetDecimals: 6,
+				now: 1_000,
+			}),
+		).resolves.toMatchObject({
+			paymentAmount: "2",
+			source: "manual",
+			rawRate: "0.5",
+			finalRate: "0.5",
+			observedAt: 900,
+		});
+	});
+
 	it("enforces receiving limits against the order value in USD minor units", async () => {
 		await expect(
 			allocateReceivingMethodAndSnapshot(db, {
@@ -369,7 +387,7 @@ async function seed(db: D1Database) {
 			"INSERT INTO exchange_rates (id, category, base, quote, raw_rate, rate, source, adjustment_bps, observed_at, expires_at, created_at, updated_at) VALUES ('rate-btc-usdt', 'crypto', 'BTC', 'USDT', '1', '1.005', 'manual', 50, 900, 999999, 1, 1)",
 		),
 		db.prepare(
-			"INSERT INTO exchange_rates (id, category, base, quote, raw_rate, rate, source, adjustment_bps, observed_at, expires_at, created_at, updated_at) VALUES ('rate-usd-trx', 'fiat', 'USD', 'TRX', '1', '1', 'manual', 0, 900, 9999999999999, 1, 1)",
+			"INSERT INTO exchange_rates (id, category, base, quote, raw_rate, rate, source, adjustment_bps, observed_at, expires_at, created_at, updated_at) VALUES ('rate-trx-usdt', 'crypto', 'TRX', 'USDT', '0.5', '0.5', 'manual', 0, 900, 9999999999999, 1, 1)",
 		),
 		...(["a", "b", "c"] as const).map((suffix) =>
 			db.prepare(
