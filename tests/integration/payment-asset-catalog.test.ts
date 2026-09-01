@@ -38,9 +38,51 @@ describe("available payment asset catalog", () => {
 		expect(methods).toEqual([
 			{
 				type: "network",
+				code: "bsc-testnet",
+				name: "BNB Smart Chain Testnet",
+				assets: ["BNB"],
+				status: "implemented",
+			},
+			{
+				type: "network",
+				code: "base-sepolia",
+				name: "Base Sepolia",
+				assets: ["ETH"],
+				status: "implemented",
+			},
+			{
+				type: "network",
+				code: "ethereum-sepolia",
+				name: "Ethereum Sepolia",
+				assets: ["ETH"],
+				status: "implemented",
+			},
+			{
+				type: "network",
+				code: "simulator",
+				name: "Payment Simulator",
+				assets: ["USDT"],
+				status: "implemented",
+			},
+			{
+				type: "network",
+				code: "polygon-amoy",
+				name: "Polygon Amoy",
+				assets: ["POL"],
+				status: "implemented",
+			},
+			{
+				type: "network",
 				code: "tron",
 				name: "TRON",
 				assets: ["TRX", "USDT"],
+				status: "implemented",
+			},
+			{
+				type: "network",
+				code: "tron-nile",
+				name: "TRON Nile",
+				assets: ["TRX"],
 				status: "implemented",
 			},
 		]);

@@ -141,6 +141,7 @@ describe("hot list query plans", () => {
 		const details = await explain(
 			db,
 			`SELECT pc.id FROM payment_ingresses pc
+			 INDEXED BY payment_ingresses_health_due_idx
 			 JOIN payment_rails pr ON pr.code = pc.rail_code
 			 WHERE pc.enabled = 1 AND pr.kind = 'chain'
 			 AND (pc.last_checked_at IS NULL OR pc.last_checked_at <= 0)

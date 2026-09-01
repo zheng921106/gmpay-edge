@@ -18,6 +18,7 @@ import { StatusBadge } from "#/components/status-badge";
 import { Badge } from "#/components/ui/badge";
 import { EnvironmentBoundary } from "#/features/payment-testing/components/environment-boundary";
 import {
+	formatPaymentTestDateTime,
 	paymentTestCallbackModeLabel,
 	paymentTestModeLabel,
 	simulatorScenarioLabel,
@@ -36,7 +37,6 @@ import {
 	simulatorScenarios,
 } from "#/features/payment-testing/types";
 import { useNavigation } from "#/layouts/components/navigation-context";
-import { formatDateTime } from "#/lib/format";
 import { m } from "#/paraglide/messages";
 
 type PaymentTestRunDetail = Awaited<ReturnType<typeof getPaymentTestRunFn>>;
@@ -150,7 +150,7 @@ export function PaymentTestRunDetailPage({
 				/>
 				<Metric
 					label={m.common_created()}
-					value={formatDateTime(detail.run.createdAt)}
+					value={formatPaymentTestDateTime(detail.run.createdAt)}
 				/>
 			</section>
 			{["ready", "running"].includes(detail.run.status) ? (

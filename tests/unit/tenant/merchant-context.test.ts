@@ -56,4 +56,16 @@ describe("merchant context cookie", () => {
 		expect(value).toContain("SameSite=Lax");
 		expect(value).not.toContain("merchant-a");
 	});
+
+	it("allows the signed context cookie on a local HTTP runtime", async () => {
+		const value = await serializeMerchantContextCookie(
+			context,
+			"context-secret",
+			1_000,
+			false,
+		);
+		expect(value).toContain("HttpOnly");
+		expect(value).toContain("SameSite=Lax");
+		expect(value).not.toContain("Secure");
+	});
 });

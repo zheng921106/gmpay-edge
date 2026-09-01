@@ -86,7 +86,7 @@ export function ProButton({
 			{...props}
 		>
 			{loading && <LoaderCircle className="size-4 animate-spin" />}
-			{children}
+			{asChild ? <Slot.Slottable>{children}</Slot.Slottable> : children}
 		</Comp>
 	);
 

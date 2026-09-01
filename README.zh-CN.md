@@ -29,6 +29,7 @@ GMPay Edge 是可部署到 Cloudflare Workers 或 Bun/Nitro Docker 容器的自�
 - 提供 GMPay 主商户协议，支持 JSON 与表单输入。
 - 在 API 边界兼容 EPay，不维护第二套订单模型。
 - 每个商户可创建沙盒和生产 API Key，GMPay、EPay 的端点路径保持不变，由 Key 身份确定租户范围。
+- 在带完整证据链的支付测试中心中运行 GMPay、EPay 模拟器、测试网和经确认的生产检查。
 - 保留不可变支付快照，集中且幂等地处理订单状态流转与支付入账。
 - 通过 Queue 支持的可靠 Outbox 投递商户回调，并保留重试历史、人工重试和审计记录。
 - 使用 Better Auth、可选 TOTP 和动态多角色 RBAC 保护后台，包括受保护的内置 `root` 角色。
@@ -55,6 +56,7 @@ GMPay Edge 是可部署到 Cloudflare Workers 或 Bun/Nitro Docker 容器的自�
 支付方式构成内置能力目录，收银台是否展示由可用的收款方式独立控制。收款方式必须配置所需的公共连接或只读账户信息并通过可用性检查，才能提供给付款人选择。
 
 Provider 要求、限制、重试行为和生产检查清单参见[支付方式与收款方式](docs/zh-CN/PAYMENT_METHODS.md)。
+沙盒、测试网、生产确认、回调证据和保留流程参见[支付测试中心](docs/PAYMENT_TESTING.zh-CN.md)。
 
 ## 系统架构
 

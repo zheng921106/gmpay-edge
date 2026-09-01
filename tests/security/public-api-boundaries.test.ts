@@ -6,6 +6,7 @@ import {
 
 const orderId = "26071306234512345678";
 const telegramBotId = "11111111-1111-4111-8111-111111111111";
+const callbackToken = "a".repeat(43);
 
 describe("signed and checkout public API boundaries", () => {
 	it("only exposes the exact provider and Telegram webhook shapes", () => {
@@ -40,6 +41,22 @@ describe("signed and checkout public API boundaries", () => {
 		);
 	});
 
+	it("exposes only signed payment test callback route shapes", () => {
+		expect(publicRequest(`/api/test-callbacks/${callbackToken}`, "GET")).toBe(
+			true,
+		);
+		expect(publicRequest(`/api/test-callbacks/${callbackToken}`, "POST")).toBe(
+			true,
+		);
+		expect(publicRequest(`/api/test-callbacks/${callbackToken}`, "PUT")).toBe(
+			false,
+		);
+		expect(publicRequest("/api/test-callbacks/short", "POST")).toBe(false);
+		expect(
+			publicRequest(`/api/test-callbacks/${callbackToken}/extra`, "POST"),
+		).toBe(false);
+	});
+
 	it("exposes only GET for public site assets", () => {
 		for (const path of ["/api/site-logo", "/api/site-background"]) {
 			expect(publicRequest(path, "GET"), path).toBe(true);
@@ -54,6 +71,7 @@ describe("signed and checkout public API boundaries", () => {
 			"/api/providers/okpay/notify/extra",
 			`/api/providers/alchemy/${telegramBotId}/extra`,
 			`/api/telegram/${telegramBotId}/webhook/extra`,
+			"/api/test-callbacks/not-a-token",
 		])
 			expect(publicRequest(path, "POST"), path).toBe(false);
 	});

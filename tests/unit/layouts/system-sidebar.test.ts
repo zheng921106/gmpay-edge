@@ -39,7 +39,7 @@ describe("admin navigation", () => {
 		).toEqual([
 			["dashboard"],
 			["orders", "payments", "reviews", "receiving-methods"],
-			["api-keys", "webhooks", "telegram"],
+			["test-center", "api-keys", "webhooks", "telegram"],
 			["email", "payment-settings", "access", "operations", "settings"],
 		]);
 	});

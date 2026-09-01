@@ -42,6 +42,8 @@ platform administrators can operate across merchants.
 - Support EPay at the API boundary without maintaining a second order model.
 - Create sandbox and production API keys per merchant without changing GMPay or
   EPay endpoint paths; key authentication determines the tenant scope.
+- Run signed GMPay and EPay simulator, testnet, and confirmed production checks
+  from an evidence-backed payment test center.
 - Preserve immutable payment snapshots and process order state transitions and
   payment accounting centrally and idempotently.
 - Deliver merchant callbacks through a durable Queue-backed outbox with retry
@@ -78,6 +80,8 @@ availability checks before it can be offered to a payer.
 
 See [Payment methods and receiving methods](docs/en-US/PAYMENT_METHODS.md) for
 provider requirements, limits, retry behavior, and the production checklist.
+See [Payment Test Center](docs/PAYMENT_TESTING.md) for sandbox, testnet,
+production confirmation, callback evidence, and retention workflows.
 
 ## Architecture
 

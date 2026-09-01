@@ -9,8 +9,8 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { statusLabel } from "#/components/status-badge";
+import { formatPaymentTestDateTime } from "#/features/payment-testing/components/labels";
 import type { PaymentTestTimelineEvent } from "#/features/payment-testing/server/timeline";
-import { formatDateTime } from "#/lib/format";
 import { m } from "#/paraglide/messages";
 
 const eventIcons: Record<
@@ -63,7 +63,7 @@ export function RunTimeline({
 									{eventKindLabel(event.kind)}
 								</strong>
 								<time className="text-xs text-muted-foreground">
-									{formatDateTime(event.occurredAt)}
+									{formatPaymentTestDateTime(event.occurredAt)}
 								</time>
 							</div>
 							{event.status ? (

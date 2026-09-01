@@ -9,11 +9,11 @@ import { ProTable, type ProTableState } from "#/components/pro/table";
 import { StatusBadge } from "#/components/status-badge";
 import { Badge } from "#/components/ui/badge";
 import {
+	formatPaymentTestDateTime,
 	paymentTestCallbackModeLabel,
 	paymentTestModeLabel,
 } from "#/features/payment-testing/components/labels";
 import { listPaymentTestRunsFn } from "#/features/payment-testing/server/functions";
-import { formatDateTime } from "#/lib/format";
 import { useCurrentProTableUrlState } from "#/lib/pro-table-url-state";
 import { m } from "#/paraglide/messages";
 
@@ -79,7 +79,7 @@ export function PaymentTestHistoryPage() {
 			{
 				accessorKey: "createdAt",
 				header: m.common_created(),
-				cell: ({ row }) => formatDateTime(row.original.createdAt),
+				cell: ({ row }) => formatPaymentTestDateTime(row.original.createdAt),
 			},
 			{
 				id: "actions",

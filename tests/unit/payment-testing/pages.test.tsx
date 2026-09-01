@@ -81,9 +81,39 @@ describe("payment test center pages", () => {
 		expect(markup).not.toMatch(/secret|authorization|cookie/i);
 	});
 
+	it("renders evidence timestamps identically across server time zones", () => {
+		const originalTimeZone = process.env.TZ;
+		try {
+			process.env.TZ = "UTC";
+			const utcMarkup = renderTimelineAt("2026-09-01T11:55:04.000Z");
+			process.env.TZ = "Asia/Shanghai";
+			const shanghaiMarkup = renderTimelineAt("2026-09-01T11:55:04.000Z");
+			expect(shanghaiMarkup).toBe(utcMarkup);
+		} finally {
+			process.env.TZ = originalTimeZone;
+		}
+	});
+
 	it("defines bounded steps for every simulator scenario", () => {
 		expect(scenarioSteps.partial_then_complete).toBe(2);
 		expect(scenarioSteps.reorg_then_recover).toBe(3);
 		expect(scenarioSteps.exact_success).toBe(1);
 	});
 });
+
+function renderTimelineAt(occurredAt: string) {
+	return renderToStaticMarkup(
+		<RunTimeline
+			events={[
+				{
+					id: "run:timezone",
+					kind: "run.created",
+					occurredAt: new Date(occurredAt).getTime(),
+					priority: 10,
+					status: "running",
+					detail: null,
+				},
+			]}
+		/>,
+	);
+}

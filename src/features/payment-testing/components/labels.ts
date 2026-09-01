@@ -3,7 +3,12 @@ import type {
 	PaymentTestCallbackMode,
 	PaymentTestMode,
 } from "#/features/payment-testing/types";
+import { formatDateTime } from "#/lib/format";
 import { m } from "#/paraglide/messages";
+
+export function formatPaymentTestDateTime(value: Date | string | number) {
+	return formatDateTime(value, undefined, "UTC");
+}
 
 export function paymentTestModeLabel(mode: PaymentTestMode) {
 	if (mode === "live") return m.payment_test_mode_live();

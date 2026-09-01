@@ -86,9 +86,11 @@ export async function serializeMerchantContextCookie(
 	context: MerchantEnvironmentContext,
 	secret: string,
 	now = Date.now(),
+	secure = true,
 ) {
 	const value = await signMerchantContext(context, secret, now);
-	return `${merchantContextCookieName}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${merchantContextMaxAgeSeconds}`;
+	const secureAttribute = secure ? "; Secure" : "";
+	return `${merchantContextCookieName}=${value}; Path=/; HttpOnly${secureAttribute}; SameSite=Lax; Max-Age=${merchantContextMaxAgeSeconds}`;
 }
 
 export async function setMerchantContext(
@@ -104,7 +106,12 @@ export async function setMerchantContext(
 	);
 	if (!config.betterAuthSecret)
 		throw new Error("Context signing secret is unavailable");
-	return serializeMerchantContextCookie(context, config.betterAuthSecret);
+	return serializeMerchantContextCookie(
+		context,
+		config.betterAuthSecret,
+		Date.now(),
+		new URL(request.url).protocol === "https:",
+	);
 }
 
 export function clearMerchantContext() {
