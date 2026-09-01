@@ -12,6 +12,11 @@ import {
 	defaultCryptoRateSync,
 	defaultFiatRateSync,
 } from "#/features/payment-settings/server/exchange-rates";
+import {
+	buildSandboxTestBootstrap,
+	sandboxTestBootstrapD1Statements,
+} from "#/features/payment-testing/server/bootstrap";
+import { loadRuntimeConfig } from "#/server/runtime-config";
 
 export type PaymentInfrastructureReconciliation = {
 	rails: number;
@@ -164,5 +169,26 @@ export async function reconcilePaymentInfrastructure(
 		]),
 	);
 	for (const result of ingressResults) added.connections += result.meta.changes;
+	const sandboxEnvironments = environments.results.filter(
+		(environment) => environment.code === "sandbox",
+	);
+	if (sandboxEnvironments.length) {
+		const runtime = await loadRuntimeConfig(database);
+		const bootstraps = await Promise.all(
+			sandboxEnvironments.map((environment) =>
+				buildSandboxTestBootstrap({
+					merchantId: environment.merchant_id,
+					environmentId: environment.id,
+					apiKeyPepper: runtime.apiKeyPepper,
+					now: new Date(now),
+				}),
+			),
+		);
+		await database.batch(
+			bootstraps.flatMap((bootstrap) =>
+				sandboxTestBootstrapD1Statements(database, bootstrap),
+			),
+		);
+	}
 	return added;
 }

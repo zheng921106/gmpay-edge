@@ -3,7 +3,12 @@ import {
 	merchantPaymentIngressInsertStatement,
 	merchantPaymentIngressValues,
 } from "#/features/merchants/server/payment-ingresses";
+import {
+	buildSandboxTestBootstrap,
+	sandboxTestBootstrapD1Statements,
+} from "#/features/payment-testing/server/bootstrap";
 import { DomainError } from "#/lib/domain-error";
+import { loadRuntimeConfig } from "#/server/runtime-config";
 
 const roleMasks = {
 	owner: RBAC_REGISTERED_ACTION_MASK,
@@ -67,6 +72,13 @@ export async function createPlatformMerchant(
 	const roleIds = new Map(
 		Object.keys(roleMasks).map((roleName) => [roleName, crypto.randomUUID()]),
 	);
+	const runtime = await loadRuntimeConfig(db);
+	const sandboxBootstrap = await buildSandboxTestBootstrap({
+		merchantId,
+		environmentId: environments[0].id,
+		apiKeyPepper: runtime.apiKeyPepper,
+		now: new Date(now),
+	});
 	await db.batch([
 		db
 			.prepare(
@@ -85,6 +97,7 @@ export async function createPlatformMerchant(
 			environments,
 			now: new Date(now),
 		}).map((ingress) => merchantPaymentIngressInsertStatement(db, ingress)),
+		...sandboxTestBootstrapD1Statements(db, sandboxBootstrap),
 		db
 			.prepare(
 				"INSERT INTO merchant_memberships (id, merchant_id, user_id, status, accepted_at, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?)",
@@ -129,7 +142,12 @@ export async function createPlatformMerchant(
 				now,
 			),
 	]);
-	return { id: merchantId, name, slug };
+	return {
+		id: merchantId,
+		name,
+		slug,
+		sandboxCredential: sandboxBootstrap.plaintextCredential,
+	};
 }
 
 export async function listPlatformMerchants(db: D1Database) {

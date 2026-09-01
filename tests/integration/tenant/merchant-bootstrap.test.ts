@@ -6,6 +6,8 @@ import { loadAdminBootstrap } from "#/features/auth/server/admin-bootstrap";
 import { createAuth } from "#/features/auth/server/auth-factory";
 import { registerMerchant } from "#/features/auth/server/registration";
 import { installSystem } from "#/features/installation/server/install";
+import { reconcilePaymentInfrastructure } from "#/features/installation/server/reconcile-payment-infrastructure";
+import { loadSandboxTestPreset } from "#/features/payment-testing/server/bootstrap";
 import {
 	findDefaultMerchantContext,
 	listMerchantContexts,
@@ -30,6 +32,7 @@ describe("merchant admin bootstrap", () => {
 	let contextCookie: string;
 	let merchantId: string;
 	let productionEnvironmentId: string;
+	let sandboxEnvironmentId: string;
 	let runtimeConfig: ReturnType<typeof createInitialRuntimeConfig>;
 
 	beforeAll(async () => {
@@ -58,6 +61,7 @@ describe("merchant admin bootstrap", () => {
 		});
 		merchantId = merchant.merchantId;
 		productionEnvironmentId = merchant.environmentIds.production;
+		sandboxEnvironmentId = merchant.environmentIds.sandbox;
 		const auth = createAuth(drizzle(db, { schema }), {
 			BETTER_AUTH_SECRET: runtimeConfig.betterAuthSecret,
 			BETTER_AUTH_URL: runtimeConfig.betterAuthUrl,
@@ -118,6 +122,69 @@ describe("merchant admin bootstrap", () => {
 			merchantId,
 			environmentId: productionEnvironmentId,
 			environment: "production",
+		});
+	});
+
+	it("idempotently restores migrated merchant sandbox test resources", async () => {
+		await db.batch([
+			db
+				.prepare(
+					"DELETE FROM receiving_methods WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'simulator'",
+				)
+				.bind(merchantId, sandboxEnvironmentId),
+			db
+				.prepare(
+					"DELETE FROM api_keys WHERE merchant_id = ? AND environment_id = ?",
+				)
+				.bind(merchantId, sandboxEnvironmentId),
+			db
+				.prepare(
+					"DELETE FROM payment_ingresses WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'simulator'",
+				)
+				.bind(merchantId, sandboxEnvironmentId),
+		]);
+		await reconcilePaymentInfrastructure(db, 1_800_000_000_000);
+		const first = await db
+			.prepare(
+				"SELECT id, pid, secret_encrypted FROM api_keys WHERE merchant_id = ? AND environment_id = ?",
+			)
+			.bind(merchantId, sandboxEnvironmentId)
+			.first<{ id: string; pid: string; secret_encrypted: string }>();
+		await reconcilePaymentInfrastructure(db, 1_800_000_000_001);
+		const keys = await db
+			.prepare(
+				"SELECT id, pid, secret_encrypted FROM api_keys WHERE merchant_id = ? AND environment_id = ?",
+			)
+			.bind(merchantId, sandboxEnvironmentId)
+			.all<{ id: string; pid: string; secret_encrypted: string }>();
+		expect(keys.results).toEqual([first]);
+		const resourceCounts = await db
+			.prepare(
+				`SELECT
+				 (SELECT COUNT(*) FROM receiving_methods WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'simulator') AS methods,
+				 (SELECT COUNT(*) FROM receiving_method_assets link JOIN receiving_methods rm ON rm.id = link.receiving_method_id WHERE rm.merchant_id = ? AND rm.environment_id = ? AND link.payment_asset_id = 'simulator-usdt') AS assets,
+				 (SELECT COUNT(*) FROM payment_ingresses WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'simulator') AS ingresses`,
+			)
+			.bind(
+				merchantId,
+				sandboxEnvironmentId,
+				merchantId,
+				sandboxEnvironmentId,
+				merchantId,
+				sandboxEnvironmentId,
+			)
+			.first<Record<string, number>>();
+		expect(resourceCounts).toEqual({ methods: 1, assets: 1, ingresses: 1 });
+		await expect(
+			loadSandboxTestPreset(db, {
+				merchantId,
+				environmentId: sandboxEnvironmentId,
+			}),
+		).resolves.toMatchObject({
+			apiKeyId: first?.id,
+			paymentAssetId: "simulator-usdt",
+			paymentMode: "simulator",
+			callbackMode: "builtin",
 		});
 	});
 

@@ -16,8 +16,13 @@ import {
 } from "#/db/schema";
 import { RBAC_REGISTERED_ACTION_MASK } from "#/features/access/rbac-bitmask";
 import { merchantPaymentIngressValues } from "#/features/merchants/server/payment-ingresses";
+import {
+	buildSandboxTestBootstrap,
+	sandboxTestBootstrapDrizzleStatements,
+} from "#/features/payment-testing/server/bootstrap";
 import { DomainError } from "#/lib/domain-error";
 import { type AppDb, getDb } from "#/server/db.server";
+import { loadRuntimeConfig } from "#/server/runtime-config";
 
 export type RegisterMerchantInput = {
 	name: string;
@@ -97,6 +102,13 @@ export async function registerMerchant(
 			randomUUID(),
 		]),
 	);
+	const runtime = await loadRuntimeConfig(db.$client);
+	const sandboxBootstrap = await buildSandboxTestBootstrap({
+		merchantId,
+		environmentId: sandboxId,
+		apiKeyPepper: runtime.apiKeyPepper,
+		now,
+	});
 	const statements = [
 		db.insert(user).values({
 			id: userId,
@@ -149,6 +161,7 @@ export async function registerMerchant(
 			environments,
 			now,
 		}).map((ingress) => db.insert(paymentIngresses).values(ingress)),
+		...sandboxTestBootstrapDrizzleStatements(db, sandboxBootstrap),
 		db.insert(merchantMemberships).values({
 			id: randomUUID(),
 			merchantId,
@@ -184,6 +197,7 @@ export async function registerMerchant(
 		merchantId,
 		environmentIds: { sandbox: sandboxId, production: productionId },
 		userId,
+		sandboxCredential: sandboxBootstrap.plaintextCredential,
 	};
 }
 

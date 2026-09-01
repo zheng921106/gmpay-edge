@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "#/db/schema";
 import { installSystem } from "#/features/installation/server/install";
 import { createPlatformMerchant } from "#/features/merchants/server/platform";
+import { loadSandboxTestPreset } from "#/features/payment-testing/server/bootstrap";
 import { applyMigrations } from "../migrations";
 
 describe("platform merchant provisioning", () => {
@@ -87,6 +88,27 @@ describe("platform merchant provisioning", () => {
 				)
 				.bind(merchant.id)
 				.first<{ count: number; public_count: number }>(),
-		).resolves.toEqual({ count: 30, public_count: 30 });
+		).resolves.toEqual({ count: 21, public_count: 21 });
+		expect(merchant.sandboxCredential).toMatchObject({
+			id: expect.any(String),
+			pid: expect.stringMatching(/^\d{12,}$/),
+			secret: expect.stringMatching(/^gms_/),
+		});
+		const sandbox = await db
+			.prepare(
+				"SELECT id FROM merchant_environments WHERE merchant_id = ? AND code = 'sandbox'",
+			)
+			.bind(merchant.id)
+			.first<{ id: string }>();
+		const preset = await loadSandboxTestPreset(db, {
+			merchantId: merchant.id,
+			environmentId: sandbox?.id ?? "",
+		});
+		expect(preset).toMatchObject({
+			apiKeyId: merchant.sandboxCredential.id,
+			paymentAssetId: "simulator-usdt",
+			paymentMode: "simulator",
+			callbackMode: "builtin",
+		});
 	});
 });

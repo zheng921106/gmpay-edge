@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "#/db/schema";
 import { registerMerchant } from "#/features/auth/server/registration";
 import { installSystem } from "#/features/installation/server/install";
+import { loadSandboxTestPreset } from "#/features/payment-testing/server/bootstrap";
 import { applyMigrations } from "../migrations";
 
 describe("automatic merchant registration", () => {
@@ -116,6 +117,79 @@ describe("automatic merchant registration", () => {
 				public_count: 6,
 			},
 		]);
+	});
+
+	it("atomically provisions one ready sandbox test credential and preset", async () => {
+		const result = await registerMerchant(db, {
+			name: "Sandbox Merchant",
+			slug: "sandbox-merchant",
+			email: "sandbox-owner@acme.example",
+			password: "another-secure-password-456",
+		});
+		expect(result.sandboxCredential).toMatchObject({
+			id: expect.any(String),
+			pid: expect.stringMatching(/^\d{12,}$/),
+			secret: expect.stringMatching(/^gms_/),
+		});
+		const resources = await db.$client
+			.prepare(
+				`SELECT
+				 (SELECT COUNT(*) FROM api_keys WHERE merchant_id = ? AND environment_id = ?) AS sandbox_keys,
+				 (SELECT COUNT(*) FROM api_keys WHERE merchant_id = ? AND environment_id = ?) AS production_keys,
+				 (SELECT COUNT(*) FROM receiving_methods WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'simulator' AND enabled = 1) AS simulator_methods,
+				 (SELECT COUNT(*) FROM receiving_methods WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'simulator') AS production_simulator_methods,
+				 (SELECT COUNT(*) FROM receiving_method_assets link JOIN receiving_methods rm ON rm.id = link.receiving_method_id WHERE rm.merchant_id = ? AND rm.environment_id = ? AND link.payment_asset_id = 'simulator-usdt') AS simulator_assets,
+				 (SELECT COUNT(*) FROM payment_ingresses WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'simulator') AS simulator_ingresses`,
+			)
+			.bind(
+				result.merchantId,
+				result.environmentIds.sandbox,
+				result.merchantId,
+				result.environmentIds.production,
+				result.merchantId,
+				result.environmentIds.sandbox,
+				result.merchantId,
+				result.environmentIds.production,
+				result.merchantId,
+				result.environmentIds.sandbox,
+				result.merchantId,
+				result.environmentIds.sandbox,
+			)
+			.first<Record<string, number>>();
+		expect(resources).toEqual({
+			sandbox_keys: 1,
+			production_keys: 0,
+			simulator_methods: 1,
+			production_simulator_methods: 0,
+			simulator_assets: 1,
+			simulator_ingresses: 1,
+		});
+		const key = await db.$client
+			.prepare("SELECT scopes, secret_encrypted FROM api_keys WHERE id = ?")
+			.bind(result.sandboxCredential.id)
+			.first<{ scopes: string; secret_encrypted: string }>();
+		expect(JSON.parse(key?.scopes ?? "[]")).toEqual([
+			"orders:create",
+			"orders:read",
+			"orders:update",
+			"assets:read",
+		]);
+		expect(key?.secret_encrypted).not.toContain(
+			result.sandboxCredential.secret,
+		);
+
+		const preset = await loadSandboxTestPreset(db.$client, {
+			merchantId: result.merchantId,
+			environmentId: result.environmentIds.sandbox,
+		});
+		expect(preset).toMatchObject({
+			apiKeyId: result.sandboxCredential.id,
+			receivingMethodId: expect.any(String),
+			paymentAssetId: "simulator-usdt",
+			paymentMode: "simulator",
+			callbackMode: "builtin",
+		});
+		expect(preset).not.toHaveProperty("secret");
 	});
 
 	it("rejects duplicate email and slug without creating partial rows", async () => {
