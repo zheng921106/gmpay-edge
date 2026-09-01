@@ -1,4 +1,6 @@
 import { toGmpayStatus } from "#/features/orders/gmpay-status";
+import { isInstanceOwnedPaymentTestCallback } from "#/features/payment-testing/server/callback";
+import { reconcilePaymentTestRun } from "#/features/payment-testing/server/timeline";
 import type { WebhookDeliveryResult } from "#/features/webhooks/server/delivery";
 import {
 	deliverWebhook,
@@ -103,6 +105,7 @@ export async function processWebhookMessage(
 			(fetcher === fetch ? resolveWebhookHostname : undefined);
 		if (
 			resolveHostname &&
+			!delivery.instanceOwnedTestCallback &&
 			!(await assertSafeResolvedWebhookUrl(delivery.url, resolveHostname))
 		)
 			throw new Error("Webhook delivery hostname did not resolve publicly");
@@ -139,6 +142,8 @@ export async function processWebhookMessage(
 			)
 			.bind(now, now, message.body.deliveryId, attempt)
 			.run();
+		if (result.paymentTestRunId)
+			await reconcilePaymentTestRun(db, result.paymentTestRunId);
 		message.ack();
 		return result;
 	}
@@ -149,6 +154,8 @@ export async function processWebhookMessage(
 			)
 			.bind(now, now, message.body.deliveryId, attempt)
 			.run();
+		if (result.paymentTestRunId)
+			await reconcilePaymentTestRun(db, result.paymentTestRunId);
 		message.ack();
 		return result;
 	}
@@ -214,13 +221,15 @@ async function resolveWebhookDelivery(
 			 o.description, o.metadata,
 			 o.status, k.pid, k.secret_encrypted,
 			 COALESCE(ops.target_value, '') AS receive_address,
-			 COALESCE(ops.asset_code, '') AS token
+			 COALESCE(ops.asset_code, '') AS token,
+			 test_run.id AS payment_test_run_id
 			 FROM webhook_deliveries d
 			 JOIN webhook_events e ON e.id = d.event_id
 			 JOIN orders o ON o.id = d.order_id
 			 JOIN api_keys k ON k.id = d.api_key_id
 			  AND k.merchant_id IS o.merchant_id AND k.environment_id IS o.environment_id
 			 LEFT JOIN order_payment_snapshots ops ON ops.order_id = o.id
+			 LEFT JOIN payment_test_runs test_run ON test_run.order_id = o.id
 			 WHERE d.id = ? AND e.id = ? LIMIT 1`,
 		)
 		.bind(message.deliveryId, message.eventId)
@@ -241,15 +250,23 @@ async function resolveWebhookDelivery(
 			secret_encrypted: string;
 			receive_address: string;
 			token: string;
+			payment_test_run_id: string | null;
 		}>();
 	if (!row) throw new Error("Webhook delivery configuration not found");
 	if (!row.api_protocol)
 		throw new Error("Webhook delivery protocol is unavailable");
-	// Validate again at delivery time so a compromised stored row cannot turn the
-	// queue worker into an SSRF proxy.
-	if (!isSafeWebhookUrl(row.url))
-		throw new Error("Webhook delivery URL is not a public HTTPS endpoint");
 	const runtime = sharedRuntime ?? (await loadRuntimeConfig(db));
+	const instanceOwnedTestCallback = await isInstanceOwnedPaymentTestCallback(
+		db,
+		row.url,
+		runtime.betterAuthUrl,
+		row.order_id,
+	);
+	// Validate again at delivery time so a compromised stored row cannot turn the
+	// queue worker into an SSRF proxy. Only an active instance-owned test callback
+	// may bypass the public-host requirement.
+	if (!instanceOwnedTestCallback && !isSafeWebhookUrl(row.url))
+		throw new Error("Webhook delivery URL is not a public HTTPS endpoint");
 	if (!runtime.apiKeyPepper)
 		throw new Error("Webhook signing secret is unavailable");
 	const payload = webhookJsonObjectSchema.parse(JSON.parse(row.payload));
@@ -263,6 +280,8 @@ async function resolveWebhookDelivery(
 	const base = {
 		...message,
 		url: row.url,
+		instanceOwnedTestCallback,
+		paymentTestRunId: row.payment_test_run_id,
 		secret: await decryptSecret(row.secret_encrypted, runtime.apiKeyPepper),
 		payload,
 	};

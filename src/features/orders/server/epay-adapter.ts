@@ -97,9 +97,12 @@ export async function authenticateEpayInput(db: D1Database, input: EpayInput) {
 	return authenticateEpayParameters(db, input, "orders:create");
 }
 
-export function toEpayOrderInput(input: EpayInput): CreateOrderInput {
+export function toEpayOrderInput(
+	input: EpayInput,
+	trustedNotifyUrl?: string,
+): CreateOrderInput {
 	const selection = epaySelection(input.type);
-	return createOrderSchema.parse({
+	const values = {
 		externalOrderId: input.out_trade_no,
 		amount: input.money,
 		currency: "CNY",
@@ -107,13 +110,15 @@ export function toEpayOrderInput(input: EpayInput): CreateOrderInput {
 		paymentNetwork: selection?.network,
 		description: input.name || undefined,
 		returnUrl: epayReturnUrl(input.return_url, input.param),
-		notifyUrl: input.notify_url,
+		notifyUrl: trustedNotifyUrl ? undefined : input.notify_url,
 		metadata: {
 			integration: "epay",
 			epayType: input.type || "alipay",
 			...(input.param ? { epayParam: input.param } : {}),
 		},
-	});
+	};
+	const parsed = createOrderSchema.parse(values);
+	return trustedNotifyUrl ? { ...parsed, notifyUrl: trustedNotifyUrl } : parsed;
 }
 
 export function epaySelection(value: string | undefined) {
@@ -140,11 +145,14 @@ type OrderCreator = (
 	context: OrderCreationContext,
 ) => Promise<ApiOrder>;
 
+type OrderInputMapper = (input: EpayInput) => CreateOrderInput;
+
 export async function handleEpayCreateRequest(
 	request: Request,
 	env: Pick<Env, "DB">,
 	create: OrderCreator = createOrder,
 	responseMode: "gateway" | "mapi" = "gateway",
+	mapOrderInput: OrderInputMapper = toEpayOrderInput,
 ) {
 	const requestId = getRequestId(request);
 	try {
@@ -164,7 +172,7 @@ export async function handleEpayCreateRequest(
 			);
 		const order = await create(
 			env.DB,
-			toEpayOrderInput(parsed.data),
+			mapOrderInput(parsed.data),
 			request.url,
 			{
 				apiKeyId: principal.apiKeyId,

@@ -7,12 +7,14 @@ import {
 	type EpayInput,
 	handleEpayCreateRequest,
 	parseEpayInput,
+	toEpayOrderInput,
 } from "#/features/orders/server/epay-adapter";
 import {
 	type GmpayCreateInput,
 	handleGmpayCreateRequest,
 	parseGmpayCreateInput,
 	parseGmpayRequestBody,
+	toCreateOrderInput,
 } from "#/features/orders/server/gmpay-api";
 import type { PaymentTestStartInput } from "#/features/payment-testing/schema";
 import { preflightPaymentTest } from "#/features/payment-testing/server/preflight";
@@ -187,8 +189,27 @@ async function invokePaymentProtocol(
 		);
 	const response =
 		input.protocol === "gmpay"
-			? await handleGmpayCreateRequest(request, { DB: db }, createSelectedOrder)
-			: await handleEpayCreateRequest(request, { DB: db }, createSelectedOrder);
+			? await handleGmpayCreateRequest(
+					request,
+					{ DB: db },
+					createSelectedOrder,
+					(value) =>
+						toCreateOrderInput(
+							value,
+							input.callback.mode === "builtin" ? notifyUrl : undefined,
+						),
+				)
+			: await handleEpayCreateRequest(
+					request,
+					{ DB: db },
+					createSelectedOrder,
+					"gateway",
+					(value) =>
+						toEpayOrderInput(
+							value,
+							input.callback.mode === "builtin" ? notifyUrl : undefined,
+						),
+				);
 	const responseBody: unknown = await response
 		.clone()
 		.json()

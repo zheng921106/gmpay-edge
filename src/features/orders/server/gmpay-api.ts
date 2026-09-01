@@ -80,8 +80,11 @@ export function parseGmpayQueryInput(value: unknown) {
 	return gmpayQuerySchema.safeParse(value);
 }
 
-export function toCreateOrderInput(input: GmpayCreateInput): CreateOrderInput {
-	return createOrderSchema.parse({
+export function toCreateOrderInput(
+	input: GmpayCreateInput,
+	trustedNotifyUrl?: string,
+): CreateOrderInput {
+	const values = {
 		externalOrderId: input.order_id,
 		amount: input.amount,
 		currency: input.currency,
@@ -89,9 +92,11 @@ export function toCreateOrderInput(input: GmpayCreateInput): CreateOrderInput {
 		paymentNetwork: input.network || undefined,
 		description: input.name || undefined,
 		returnUrl: input.redirect_url || undefined,
-		notifyUrl: input.notify_url,
+		notifyUrl: trustedNotifyUrl ? undefined : input.notify_url,
 		metadata: { integration: "gmpay" },
-	});
+	};
+	const parsed = createOrderSchema.parse(values);
+	return trustedNotifyUrl ? { ...parsed, notifyUrl: trustedNotifyUrl } : parsed;
 }
 
 export async function authenticateGmpayCreate(
@@ -249,10 +254,13 @@ type OrderCreator = (
 	context: OrderCreationContext,
 ) => Promise<ApiOrder>;
 
+type OrderInputMapper = (input: GmpayCreateInput) => CreateOrderInput;
+
 export async function handleGmpayCreateRequest(
 	request: Request,
 	env: Pick<Env, "DB">,
 	create: OrderCreator = createOrder,
+	mapOrderInput: OrderInputMapper = toCreateOrderInput,
 ) {
 	const requestId = getRequestId(request);
 	try {
@@ -275,7 +283,7 @@ export async function handleGmpayCreateRequest(
 			);
 		const order = await create(
 			env.DB,
-			toCreateOrderInput(parsed.data),
+			mapOrderInput(parsed.data),
 			request.url,
 			{
 				apiKeyId: principal.apiKeyId,

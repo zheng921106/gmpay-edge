@@ -15,6 +15,7 @@ export interface WebhookDeliveryResult {
 	requestSnapshot?: WebhookRequestSnapshot;
 	/** Minimum delay requested by the receiver, capped to the local retry window. */
 	retryAfterMs?: number;
+	paymentTestRunId?: string | null;
 }
 
 export function retryDelayMs(attempt: number): number {
@@ -49,6 +50,7 @@ export async function deliverWebhook(
 		"powered-by": "GMPay Edge",
 		"x-gmpay-event-id": message.eventId,
 		"x-gmpay-delivery-id": message.deliveryId,
+		"x-gmpay-attempt": String(message.attempt),
 	};
 	const requestSnapshot: WebhookRequestSnapshot = epay
 		? {
@@ -85,6 +87,7 @@ export async function deliverWebhook(
 			success,
 			status: response.status,
 			durationMs: Date.now() - started,
+			paymentTestRunId: message.paymentTestRunId,
 			requestSnapshot,
 			...(excerpt ? { responseExcerpt: excerpt } : {}),
 			...(retryAfterMs === undefined ? {} : { retryAfterMs }),
@@ -98,6 +101,7 @@ export async function deliverWebhook(
 		return {
 			success: false,
 			durationMs: Date.now() - started,
+			paymentTestRunId: message.paymentTestRunId,
 			requestSnapshot,
 			errorCode:
 				error instanceof DOMException && error.name === "TimeoutError"

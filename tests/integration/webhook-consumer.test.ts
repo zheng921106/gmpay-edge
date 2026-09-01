@@ -176,6 +176,7 @@ describe("Webhook queue consumer on D1", () => {
 			actual_amount: "0",
 			status: 2,
 		});
+		expect(new Headers(init?.headers).get("x-gmpay-attempt")).toBe("1");
 		expect(Object.keys(body).sort()).toEqual(
 			[
 				"pid",

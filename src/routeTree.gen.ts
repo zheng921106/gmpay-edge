@@ -50,6 +50,7 @@ import { Route as AdminReceivingMethodsIndexRouteImport } from './routes/admin/r
 import { Route as AdminPaymentSettingsIndexRouteImport } from './routes/admin/payment-settings/index'
 import { Route as AdminOperationsIndexRouteImport } from './routes/admin/operations/index'
 import { Route as AdminAccessIndexRouteImport } from './routes/admin/access/index'
+import { Route as ApiTestCallbacksTokenRouteImport } from './routes/api/test-callbacks/$token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AdminWebhooksRecordsRouteImport } from './routes/admin/webhooks/records'
 import { Route as AdminWebhooksProviderEventsRouteImport } from './routes/admin/webhooks/provider-events'
@@ -294,6 +295,11 @@ const AdminAccessIndexRoute = AdminAccessIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminAccessRouteRoute,
+} as any)
+const ApiTestCallbacksTokenRoute = ApiTestCallbacksTokenRouteImport.update({
+  id: '/api/test-callbacks/$token',
+  path: '/api/test-callbacks/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -557,6 +563,7 @@ export interface FileRoutesByFullPath {
   '/admin/webhooks/provider-events': typeof AdminWebhooksProviderEventsRoute
   '/admin/webhooks/records': typeof AdminWebhooksRecordsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/test-callbacks/$token': typeof ApiTestCallbacksTokenRoute
   '/admin/access/': typeof AdminAccessIndexRoute
   '/admin/operations/': typeof AdminOperationsIndexRoute
   '/admin/payment-settings/': typeof AdminPaymentSettingsIndexRoute
@@ -626,6 +633,7 @@ export interface FileRoutesByTo {
   '/admin/webhooks/provider-events': typeof AdminWebhooksProviderEventsRoute
   '/admin/webhooks/records': typeof AdminWebhooksRecordsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/test-callbacks/$token': typeof ApiTestCallbacksTokenRoute
   '/admin/access': typeof AdminAccessIndexRoute
   '/admin/operations': typeof AdminOperationsIndexRoute
   '/admin/payment-settings': typeof AdminPaymentSettingsIndexRoute
@@ -707,6 +715,7 @@ export interface FileRoutesById {
   '/admin/webhooks/provider-events': typeof AdminWebhooksProviderEventsRoute
   '/admin/webhooks/records': typeof AdminWebhooksRecordsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/test-callbacks/$token': typeof ApiTestCallbacksTokenRoute
   '/admin/access/': typeof AdminAccessIndexRoute
   '/admin/operations/': typeof AdminOperationsIndexRoute
   '/admin/payment-settings/': typeof AdminPaymentSettingsIndexRoute
@@ -787,6 +796,7 @@ export interface FileRouteTypes {
     | '/admin/webhooks/provider-events'
     | '/admin/webhooks/records'
     | '/api/auth/$'
+    | '/api/test-callbacks/$token'
     | '/admin/access/'
     | '/admin/operations/'
     | '/admin/payment-settings/'
@@ -856,6 +866,7 @@ export interface FileRouteTypes {
     | '/admin/webhooks/provider-events'
     | '/admin/webhooks/records'
     | '/api/auth/$'
+    | '/api/test-callbacks/$token'
     | '/admin/access'
     | '/admin/operations'
     | '/admin/payment-settings'
@@ -936,6 +947,7 @@ export interface FileRouteTypes {
     | '/admin/webhooks/provider-events'
     | '/admin/webhooks/records'
     | '/api/auth/$'
+    | '/api/test-callbacks/$token'
     | '/admin/access/'
     | '/admin/operations/'
     | '/admin/payment-settings/'
@@ -971,6 +983,7 @@ export interface RootRouteChildren {
   ApiSiteLogoRoute: typeof ApiSiteLogoRoute
   CheckoutOrderIdRoute: typeof CheckoutOrderIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiTestCallbacksTokenRoute: typeof ApiTestCallbacksTokenRoute
   ApiCheckoutOrderIdReviewRoute: typeof ApiCheckoutOrderIdReviewRoute
   ApiProvidersAlchemySourceIdRoute: typeof ApiProvidersAlchemySourceIdRoute
   ApiProvidersOkpayNotifyRoute: typeof ApiProvidersOkpayNotifyRoute
@@ -1271,6 +1284,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/access/'
       preLoaderRoute: typeof AdminAccessIndexRouteImport
       parentRoute: typeof AdminAccessRouteRoute
+    }
+    '/api/test-callbacks/$token': {
+      id: '/api/test-callbacks/$token'
+      path: '/api/test-callbacks/$token'
+      fullPath: '/api/test-callbacks/$token'
+      preLoaderRoute: typeof ApiTestCallbacksTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -1769,6 +1789,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSiteLogoRoute: ApiSiteLogoRoute,
   CheckoutOrderIdRoute: CheckoutOrderIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiTestCallbacksTokenRoute: ApiTestCallbacksTokenRoute,
   ApiCheckoutOrderIdReviewRoute: ApiCheckoutOrderIdReviewRoute,
   ApiProvidersAlchemySourceIdRoute: ApiProvidersAlchemySourceIdRoute,
   ApiProvidersOkpayNotifyRoute: ApiProvidersOkpayNotifyRoute,
@@ -1788,13 +1809,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

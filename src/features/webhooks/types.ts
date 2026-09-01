@@ -68,6 +68,7 @@ type WebhookDeliveryBase = {
 	secret: string;
 	payload: WebhookJsonObject;
 	protocol: "gmpay" | "epay";
+	paymentTestRunId?: string | null;
 };
 
 export type WebhookDeliveryRequest = WebhookDeliveryBase &
