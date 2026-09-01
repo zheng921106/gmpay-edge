@@ -16,6 +16,7 @@ import type {
 
 const configSchema = z.object({
 	apiUrl: z.url().default("https://api.trongrid.io"),
+	network: z.enum(["tron", "tron-nile"]).default("tron"),
 	apiKey: z.string().min(1).optional(),
 	timeoutMs: z.number().int().min(1000).max(30_000).default(8000),
 	maxPages: z.number().int().min(1).max(500).default(50),
@@ -75,11 +76,12 @@ const nowBlockSchema = z.object({
 
 export class TronAdapter implements PaymentAdapter<TronConfig> {
 	readonly id = "tron";
-	readonly network = "tron" as const;
+	readonly network: "tron" | "tron-nile";
 	readonly configSchema = configSchema;
 	readonly config: TronConfig;
 	constructor(config: unknown) {
 		this.config = this.validateConfig(config);
+		this.network = this.config.network;
 	}
 	validateConfig(value: unknown): TronConfig {
 		return this.configSchema.parse(value);
@@ -103,7 +105,7 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 		return (
 			tx.success &&
 			tx.canonical !== false &&
-			tx.network === "tron" &&
+			tx.network === this.network &&
 			tx.to === target.address &&
 			tx.assetCode === assetCode
 		);
@@ -470,7 +472,7 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 		blockHash: string,
 	): NormalizedTransaction {
 		return {
-			network: "tron",
+			network: this.network,
 			hash: row.transaction_id,
 			eventIndex: 0,
 			from: row.from,
@@ -502,7 +504,7 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 		);
 		if (!transfer) throw new Error("Unsupported TRON transaction contract");
 		return {
-			network: "tron",
+			network: this.network,
 			hash: row.txID,
 			eventIndex: 0,
 			from: tronHexToBase58(transfer.parameter.value.owner_address),
@@ -532,7 +534,7 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 		blockHash: string,
 	): NormalizedTransaction {
 		return {
-			network: "tron",
+			network: this.network,
 			hash,
 			eventIndex: Number(event.event_index ?? 0),
 			from: normalizeTronEventAddress(event.result.from),

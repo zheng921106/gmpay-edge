@@ -101,11 +101,11 @@ describe("system installation", { timeout: 30_000 }, () => {
 			root_users: 1,
 			audits: 1,
 			runtime_settings: 4,
-			payment_rails: 11,
-			payment_ingresses: 30,
-			scoped_payment_ingresses: 30,
+			payment_rails: 17,
+			payment_ingresses: 21,
+			scoped_payment_ingresses: 21,
 			unscoped_payment_ingresses: 0,
-			payment_assets: 28,
+			payment_assets: 34,
 			receiving_methods: 0,
 			exchange_rates: initialExchangeRates.length,
 			telegram_bots: 0,
@@ -218,12 +218,18 @@ describe("system installation", { timeout: 30_000 }, () => {
 		expect(rails.results).toEqual([
 			{ code: "aptos", kind: "chain", adapter: "aptos" },
 			{ code: "base", kind: "chain", adapter: "evm" },
+			{ code: "base-sepolia", kind: "chain", adapter: "evm" },
 			{ code: "bsc", kind: "chain", adapter: "evm" },
+			{ code: "bsc-testnet", kind: "chain", adapter: "evm" },
 			{ code: "ethereum", kind: "chain", adapter: "evm" },
+			{ code: "ethereum-sepolia", kind: "chain", adapter: "evm" },
 			{ code: "polygon", kind: "chain", adapter: "evm" },
+			{ code: "polygon-amoy", kind: "chain", adapter: "evm" },
+			{ code: "simulator", kind: "chain", adapter: "simulator" },
 			{ code: "solana", kind: "chain", adapter: "solana" },
 			{ code: "ton", kind: "chain", adapter: "ton" },
 			{ code: "tron", kind: "chain", adapter: "tron" },
+			{ code: "tron-nile", kind: "chain", adapter: "tron" },
 		]);
 
 		const assets = await database
@@ -249,14 +255,17 @@ describe("system installation", { timeout: 30_000 }, () => {
 			"base:ETH:native:18",
 			"base:USDC:token:6",
 			"base:USDT:token:6",
+			"base-sepolia:ETH:native:18",
 			"binance:USDC:external:8",
 			"binance:USDT:external:8",
 			"bsc:BNB:native:18",
 			"bsc:USDC:token:18",
 			"bsc:USDT:token:18",
+			"bsc-testnet:BNB:native:18",
 			"ethereum:ETH:native:18",
 			"ethereum:USDC:token:6",
 			"ethereum:USDT:token:6",
+			"ethereum-sepolia:ETH:native:18",
 			"okpay:TRX:external:6",
 			"okpay:USDT:external:8",
 			"okx:USDC:external:8",
@@ -264,6 +273,8 @@ describe("system installation", { timeout: 30_000 }, () => {
 			"polygon:MATIC:native:18",
 			"polygon:USDC:token:6",
 			"polygon:USDT:token:6",
+			"polygon-amoy:POL:native:18",
+			"simulator:USDT:native:6",
 			"solana:SOL:native:9",
 			"solana:USDC:token:6",
 			"solana:USDT:token:6",
@@ -271,6 +282,7 @@ describe("system installation", { timeout: 30_000 }, () => {
 			"ton:USDT:token:6",
 			"tron:TRX:native:6",
 			"tron:USDT:token:6",
+			"tron-nile:TRX:native:6",
 		]);
 		expect(
 			assets.results.every((asset) =>
@@ -307,7 +319,7 @@ describe("system installation", { timeout: 30_000 }, () => {
 			database,
 			20,
 		);
-		expect(healthTargets).toHaveLength(16);
+		expect(healthTargets).toHaveLength(12);
 		expect(healthTargets.every((target) => target.adapter !== null)).toBe(true);
 		const providerEndpoints = await database
 			.prepare(
@@ -348,7 +360,7 @@ describe("system installation", { timeout: 30_000 }, () => {
 				default_confirmations: number;
 				rail: string;
 			}>();
-		expect(methodPolicy.results).toHaveLength(28);
+		expect(methodPolicy.results).toHaveLength(34);
 		expect(
 			methodPolicy.results.find((method) => method.rail === "tron"),
 		).toMatchObject({ default_confirmations: 20 });
@@ -390,7 +402,7 @@ describe("system installation", { timeout: 30_000 }, () => {
 		const nativeCodes = [
 			...new Set(
 				assets.results
-					.filter((asset) => asset.kind === "native")
+					.filter((asset) => asset.kind === "native" && asset.code !== "USDT")
 					.map((asset) => asset.code),
 			),
 		].sort();

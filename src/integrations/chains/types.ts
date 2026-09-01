@@ -1,11 +1,17 @@
 import type { z } from "zod";
 
 export type Network =
+	| "simulator"
 	| "tron"
+	| "tron-nile"
 	| "ethereum"
+	| "ethereum-sepolia"
 	| "base"
+	| "base-sepolia"
 	| "bsc"
+	| "bsc-testnet"
 	| "polygon"
+	| "polygon-amoy"
 	| "ton"
 	| "aptos"
 	| "solana"

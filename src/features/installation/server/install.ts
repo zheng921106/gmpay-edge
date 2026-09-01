@@ -179,22 +179,31 @@ export async function installSystem(
 				updatedAt: now,
 			}),
 			...initialPaymentRails.map((rail) =>
-				db.insert(paymentRails).values({
-					...rail,
-					createdAt: now,
-					updatedAt: now,
-				}),
+				db
+					.insert(paymentRails)
+					.values({
+						...rail,
+						createdAt: now,
+						updatedAt: now,
+					})
+					.onConflictDoNothing(),
 			),
 			...initialPaymentAssets.map((asset) =>
-				db.insert(paymentAssets).values({
-					...asset,
-					createdAt: now,
-					updatedAt: now,
-				}),
+				db
+					.insert(paymentAssets)
+					.values({
+						...asset,
+						createdAt: now,
+						updatedAt: now,
+					})
+					.onConflictDoNothing(),
 			),
 			...merchantPaymentIngressValues({
 				merchantId: "default-merchant",
-				environments: [{ id: "default-sandbox" }, { id: "default-production" }],
+				environments: [
+					{ id: "default-sandbox", code: "sandbox" },
+					{ id: "default-production", code: "production" },
+				],
 				now,
 			}).map((ingress) => db.insert(paymentIngresses).values(ingress)),
 			...initialExchangeRates.map((rate) =>

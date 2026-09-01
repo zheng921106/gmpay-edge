@@ -14,6 +14,7 @@ export type ReceivingMethodReadinessReasonCode =
 	| "MISSING_CONNECTION"
 	| "MISSING_TARGET"
 	| "INVALID_TARGET"
+	| "ENVIRONMENT_MISMATCH"
 	| "UNHEALTHY_CONNECTION";
 
 export type ReceivingMethodReadinessReason = {

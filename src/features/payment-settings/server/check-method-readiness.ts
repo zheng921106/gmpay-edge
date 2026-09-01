@@ -4,6 +4,12 @@ import {
 	type ReceivingMethodReadinessReason,
 } from "#/features/payment-settings/readiness";
 import { createReceivingMethodAdapters } from "#/features/payment-settings/server/method-adapter";
+import { assertPaymentModeAllowed } from "#/features/payment-testing/environment";
+import type {
+	PaymentEnvironmentCode,
+	PaymentNetworkClass,
+	PaymentTestMode,
+} from "#/features/payment-testing/types";
 
 type ReceivingMethodReadinessRow = {
 	id: string;
@@ -11,6 +17,7 @@ type ReceivingMethodReadinessRow = {
 	asset_kind: "native" | "token" | "external";
 	contract_address: string | null;
 	rail_code: string;
+	network_class: PaymentNetworkClass;
 	connection_enabled: number;
 	connection_healthy: number;
 	payment_method_id: string;
@@ -26,6 +33,8 @@ export async function checkReceivingMethodReadiness(
 		validateTarget?: boolean;
 		merchantId?: string;
 		environmentId?: string;
+		environmentCode?: PaymentEnvironmentCode;
+		paymentMode?: PaymentTestMode;
 	} = {},
 ): Promise<ReceivingMethodReadiness> {
 	const checkedAt = options.now ?? Date.now();
@@ -41,7 +50,7 @@ export async function checkReceivingMethodReadiness(
 			`SELECT rm.id, rm.enabled, link.payment_asset_id AS payment_method_id,
 			 rm.target_value,
 			 pa.kind AS asset_kind, pa.contract_address,
-			 pr.code AS rail_code,
+			 pr.code AS rail_code, pr.network_class,
 			 EXISTS (SELECT 1 FROM payment_ingresses pc WHERE pc.rail_code = pa.rail_code
 			  AND pc.enabled = 1
 			  AND (? = 0 OR (pc.merchant_id IS ? AND pc.environment_id IS ?))) AS connection_enabled,
@@ -74,6 +83,22 @@ export async function checkReceivingMethodReadiness(
 		return result(methodId, checkedAt, "unsupported", [
 			reason("METHOD_NOT_FOUND", "Receiving method does not exist."),
 		]);
+	if (options.environmentCode && options.paymentMode) {
+		try {
+			assertPaymentModeAllowed(
+				options.environmentCode,
+				options.paymentMode,
+				method.network_class,
+			);
+		} catch {
+			return result(methodId, checkedAt, "unsupported", [
+				reason(
+					"ENVIRONMENT_MISMATCH",
+					"The receiving method is not available in this payment mode.",
+				),
+			]);
+		}
+	}
 	if (
 		methods.results.some(
 			(row) => row.asset_kind === "token" && !row.contract_address,
@@ -86,11 +111,11 @@ export async function checkReceivingMethodReadiness(
 		return result(methodId, checkedAt, "disabled", [
 			reason("METHOD_DISABLED", "The receiving method is disabled."),
 		]);
-	if (!method.connection_enabled)
+	if (method.network_class !== "simulated" && !method.connection_enabled)
 		return result(methodId, checkedAt, "missing_connection", [
 			reason("MISSING_CONNECTION", "Configure an enabled payment connection."),
 		]);
-	if (!method.connection_healthy)
+	if (method.network_class !== "simulated" && !method.connection_healthy)
 		return result(methodId, checkedAt, "unhealthy", [
 			reason(
 				"UNHEALTHY_CONNECTION",

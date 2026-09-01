@@ -1,7 +1,11 @@
-import { initialPaymentConnections } from "#/features/payment-settings/catalog";
+import {
+	initialPaymentConnections,
+	initialPaymentRails,
+} from "#/features/payment-settings/catalog";
 
 export type MerchantIngressEnvironment = {
 	id: string;
+	code: "sandbox" | "production";
 };
 
 export type MerchantPaymentIngress = {
@@ -12,7 +16,7 @@ export type MerchantPaymentIngress = {
 	name: string;
 	type: "rpc" | "provider";
 	transport: "http" | "websocket";
-	endpoint: string;
+	endpoint: string | null;
 	apiKey: null;
 	priority: number;
 	enabled: boolean;
@@ -27,22 +31,31 @@ export function merchantPaymentIngressValues(input: {
 	now: Date;
 }): MerchantPaymentIngress[] {
 	return input.environments.flatMap((environment) =>
-		initialPaymentConnections.map((connection) => ({
-			id: defaultIngressId(input.merchantId, environment.id, connection.id),
-			merchantId: input.merchantId,
-			environmentId: environment.id,
-			railCode: connection.railCode,
-			name: connection.name,
-			type: connection.type,
-			transport: "transport" in connection ? connection.transport : "http",
-			endpoint: connection.endpoint,
-			apiKey: null,
-			priority: connection.priority,
-			enabled: connection.enabled,
-			healthStatus: connection.healthStatus,
-			createdAt: input.now,
-			updatedAt: input.now,
-		})),
+		initialPaymentConnections
+			.filter((connection) => {
+				const networkClass = initialPaymentRails.find(
+					(rail) => rail.code === connection.railCode,
+				)?.networkClass;
+				return environment.code === "production"
+					? networkClass === "mainnet"
+					: networkClass === "testnet" || networkClass === "simulated";
+			})
+			.map((connection) => ({
+				id: defaultIngressId(input.merchantId, environment.id, connection.id),
+				merchantId: input.merchantId,
+				environmentId: environment.id,
+				railCode: connection.railCode,
+				name: connection.name,
+				type: connection.type,
+				transport: "transport" in connection ? connection.transport : "http",
+				endpoint: connection.endpoint,
+				apiKey: null,
+				priority: connection.priority,
+				enabled: connection.enabled,
+				healthStatus: connection.healthStatus,
+				createdAt: input.now,
+				updatedAt: input.now,
+			})),
 	);
 }
 

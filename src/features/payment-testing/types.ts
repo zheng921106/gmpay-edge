@@ -3,6 +3,7 @@ export const paymentNetworkClasses = [
 	"testnet",
 	"simulated",
 ] as const;
+export const paymentEnvironmentCodes = ["sandbox", "production"] as const;
 
 export const paymentTestProtocols = ["gmpay", "epay"] as const;
 export const paymentTestModes = ["simulator", "testnet", "live"] as const;
@@ -26,6 +27,7 @@ export const paymentTestExpectedOutcomes = [
 ] as const;
 
 export type PaymentNetworkClass = (typeof paymentNetworkClasses)[number];
+export type PaymentEnvironmentCode = (typeof paymentEnvironmentCodes)[number];
 export type PaymentTestProtocol = (typeof paymentTestProtocols)[number];
 export type PaymentTestMode = (typeof paymentTestModes)[number];
 export type PaymentTestStatus = (typeof paymentTestStatuses)[number];

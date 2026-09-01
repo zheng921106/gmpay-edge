@@ -16,7 +16,27 @@ import type {
 	TransactionLookup,
 } from "./types";
 
-const evmNetworks = ["ethereum", "base", "bsc", "polygon"] as const;
+const evmNetworks = [
+	"ethereum",
+	"ethereum-sepolia",
+	"base",
+	"base-sepolia",
+	"bsc",
+	"bsc-testnet",
+	"polygon",
+	"polygon-amoy",
+] as const;
+const evmChainIds: Readonly<Record<(typeof evmNetworks)[number], number>> = {
+	ethereum: 1,
+	"ethereum-sepolia": 11155111,
+	base: 8453,
+	"base-sepolia": 84532,
+	bsc: 56,
+	"bsc-testnet": 97,
+	polygon: 137,
+	"polygon-amoy": 80002,
+};
+class EvmChainMismatchError extends Error {}
 const configSchema = z.object({
 	rpcUrl: z.url(),
 	network: z.enum(evmNetworks),
@@ -384,8 +404,19 @@ export class EvmAdapter implements PaymentAdapter<EvmConfig> {
 					operation: "health_check",
 					classifyError: (error) => this.classifyError(error),
 				},
-				(counters) =>
-					this.rpc("eth_chainId", [], undefined, undefined, counters),
+				async (counters) => {
+					const chainId = fromHex(
+						await this.rpc<string>(
+							"eth_chainId",
+							[],
+							undefined,
+							undefined,
+							counters,
+						),
+					);
+					if (chainId !== evmChainIds[this.config.network])
+						throw new EvmChainMismatchError();
+				},
 			);
 			return {
 				healthy: true,
@@ -402,6 +433,7 @@ export class EvmAdapter implements PaymentAdapter<EvmConfig> {
 		}
 	}
 	classifyError(error: unknown): AdapterErrorKind {
+		if (error instanceof EvmChainMismatchError) return "configuration";
 		if (error instanceof JsonRpcRequestError) {
 			if (error.status === 401 || error.status === 403) return "authentication";
 			if (error.status === 429) return "rate_limit";

@@ -86,7 +86,10 @@ export async function registerMerchant(
 	const merchantId = randomUUID();
 	const sandboxId = randomUUID();
 	const productionId = randomUUID();
-	const environments = [{ id: sandboxId }, { id: productionId }] as const;
+	const environments = [
+		{ id: sandboxId, code: "sandbox" },
+		{ id: productionId, code: "production" },
+	] as const;
 	const password = await hashPassword(input.password);
 	const roleIds = new Map(
 		["owner", "admin", "operator", "viewer"].map((name) => [

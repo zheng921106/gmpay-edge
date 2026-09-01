@@ -4,6 +4,7 @@ export const defaultCryptoExchangeRates = {
 	ETH: "1869",
 	GRAM: "1.6",
 	MATIC: "0.08419",
+	POL: "0.08419",
 	SOL: "77.07",
 	TRX: "0.3252",
 } as const;

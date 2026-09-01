@@ -22,12 +22,16 @@ describe("payment infrastructure catalog", () => {
 			solana: ["USDT", "USDC"],
 		} as const;
 		for (const [code, assets] of Object.entries(requiredAssets)) {
-			expect(initialChainRails.some((rail) => rail.code === code)).toBe(true);
+			expect(
+				initialChainRails.some(
+					(rail) => rail.code === code && rail.networkClass === "mainnet",
+				),
+			).toBe(true);
 			expect(
 				initialChainConnections.some(
 					(connection) =>
 						connection.network === code &&
-						connection.url.startsWith("https://"),
+						connection.url?.startsWith("https://"),
 				),
 			).toBe(true);
 			const catalogAssets = initialPaymentAssets
@@ -39,6 +43,39 @@ describe("payment infrastructure catalog", () => {
 			))
 				expect(asset.defaultConfirmations).toBeGreaterThan(0);
 		}
+	});
+
+	it("registers isolated simulator and first-release native testnet rails", () => {
+		const expected = [
+			["simulator", "simulated", "USDT", null],
+			["tron-nile", "testnet", "TRX", "https://nile.trongrid.io"],
+			["ethereum-sepolia", "testnet", "ETH", null],
+			["base-sepolia", "testnet", "ETH", "https://sepolia.base.org"],
+			[
+				"bsc-testnet",
+				"testnet",
+				"BNB",
+				"https://bsc-testnet-dataseed.bnbchain.org",
+			],
+			["polygon-amoy", "testnet", "POL", "https://rpc-amoy.polygon.technology"],
+		] as const;
+
+		for (const [code, networkClass, assetCode, endpoint] of expected) {
+			expect(initialPaymentRails).toContainEqual(
+				expect.objectContaining({ code, networkClass }),
+			);
+			expect(initialPaymentAssets).toContainEqual(
+				expect.objectContaining({ railCode: code, code: assetCode }),
+			);
+			expect(initialPaymentConnections).toContainEqual(
+				expect.objectContaining({ railCode: code, endpoint }),
+			);
+		}
+
+		for (const rail of initialPaymentRails.filter(
+			(rail) => rail.kind !== "chain",
+		))
+			expect(rail.networkClass).toBe("mainnet");
 	});
 
 	it("registers provider rails and keeps their connections enabled by default", () => {

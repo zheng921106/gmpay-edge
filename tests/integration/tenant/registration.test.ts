@@ -87,29 +87,33 @@ describe("automatic merchant registration", () => {
 		});
 		const ingresses = await db.$client
 			.prepare(
-				`SELECT environment_id, COUNT(*) AS count,
+				`SELECT environment_id, me.code, COUNT(*) AS count,
 				 SUM(CASE WHEN api_key IS NULL AND config_encrypted IS NULL THEN 1 ELSE 0 END) AS public_count
-				 FROM payment_ingresses
-				 WHERE merchant_id = ?
+				 FROM payment_ingresses pi
+				 JOIN merchant_environments me ON me.id = pi.environment_id
+				 WHERE pi.merchant_id = ?
 				 GROUP BY environment_id
-				 ORDER BY environment_id`,
+				 ORDER BY me.code`,
 			)
 			.bind(result.merchantId)
 			.all<{
 				environment_id: string;
+				code: "sandbox" | "production";
 				count: number;
 				public_count: number;
 			}>();
 		expect(ingresses.results).toEqual([
 			{
 				environment_id: expect.any(String),
+				code: "production",
 				count: 15,
 				public_count: 15,
 			},
 			{
 				environment_id: expect.any(String),
-				count: 15,
-				public_count: 15,
+				code: "sandbox",
+				count: 6,
+				public_count: 6,
 			},
 		]);
 	});

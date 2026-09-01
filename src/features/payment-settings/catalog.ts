@@ -5,52 +5,102 @@ import {
 
 export const initialChainRails = [
 	{
+		code: "simulator",
+		name: "Payment Simulator",
+		family: "simulator",
+		nativeSymbol: "USDT",
+		networkClass: "simulated",
+	},
+	{
 		code: "tron",
 		name: "TRON",
 		family: "tron",
 		nativeSymbol: "TRX",
+		networkClass: "mainnet",
+	},
+	{
+		code: "tron-nile",
+		name: "TRON Nile",
+		family: "tron",
+		nativeSymbol: "TRX",
+		networkClass: "testnet",
 	},
 	{
 		code: "ethereum",
 		name: "Ethereum",
 		family: "evm",
 		nativeSymbol: "ETH",
+		networkClass: "mainnet",
+	},
+	{
+		code: "ethereum-sepolia",
+		name: "Ethereum Sepolia",
+		family: "evm",
+		nativeSymbol: "ETH",
+		networkClass: "testnet",
 	},
 	{
 		code: "base",
 		name: "Base",
 		family: "evm",
 		nativeSymbol: "ETH",
+		networkClass: "mainnet",
+	},
+	{
+		code: "base-sepolia",
+		name: "Base Sepolia",
+		family: "evm",
+		nativeSymbol: "ETH",
+		networkClass: "testnet",
 	},
 	{
 		code: "bsc",
 		name: "BNB Smart Chain",
 		family: "evm",
 		nativeSymbol: "BNB",
+		networkClass: "mainnet",
+	},
+	{
+		code: "bsc-testnet",
+		name: "BNB Smart Chain Testnet",
+		family: "evm",
+		nativeSymbol: "BNB",
+		networkClass: "testnet",
 	},
 	{
 		code: "polygon",
 		name: "Polygon",
 		family: "evm",
 		nativeSymbol: "MATIC",
+		networkClass: "mainnet",
+	},
+	{
+		code: "polygon-amoy",
+		name: "Polygon Amoy",
+		family: "evm",
+		nativeSymbol: "POL",
+		networkClass: "testnet",
 	},
 	{
 		code: "ton",
 		name: "TON",
 		family: "ton",
 		nativeSymbol: "GRAM",
+		networkClass: "mainnet",
 	},
 	{
 		code: "aptos",
 		name: "Aptos",
 		family: "aptos",
 		nativeSymbol: "APT",
+		networkClass: "mainnet",
 	},
 	{
 		code: "solana",
 		name: "Solana",
 		family: "solana",
 		nativeSymbol: "SOL",
+		networkClass: "mainnet",
 	},
 ] as const;
 
@@ -94,6 +144,7 @@ export const initialPaymentRails = [
 		name: network.name,
 		kind: "chain" as const,
 		adapter: network.family,
+		networkClass: network.networkClass,
 		metadata: {
 			family: network.family,
 			nativeSymbol: network.nativeSymbol,
@@ -104,6 +155,7 @@ export const initialPaymentRails = [
 		name: exchange.name,
 		kind: "exchange" as const,
 		adapter: exchange.code,
+		networkClass: "mainnet" as const,
 		metadata: {},
 	})),
 	...initialWalletRails.map((wallet) => ({
@@ -111,16 +163,31 @@ export const initialPaymentRails = [
 		name: wallet.name,
 		kind: "wallet" as const,
 		adapter: wallet.code,
+		networkClass: "mainnet" as const,
 		metadata: {},
 	})),
 ] as const;
 
 export const initialChainConnections = [
 	{
+		id: "rpc-simulator-default",
+		network: "simulator",
+		name: "Internal Simulator",
+		url: null,
+		enabled: true,
+	},
+	{
 		id: "rpc-tron-default",
 		network: "tron",
 		name: "TronGrid",
 		url: "https://api.trongrid.io",
+		enabled: true,
+	},
+	{
+		id: "rpc-tron-nile-default",
+		network: "tron-nile",
+		name: "TronGrid Nile",
+		url: "https://nile.trongrid.io",
 		enabled: true,
 	},
 	{
@@ -131,10 +198,24 @@ export const initialChainConnections = [
 		enabled: true,
 	},
 	{
+		id: "rpc-ethereum-sepolia-default",
+		network: "ethereum-sepolia",
+		name: "Ethereum Sepolia RPC",
+		url: null,
+		enabled: false,
+	},
+	{
 		id: "rpc-base-default",
 		network: "base",
 		name: "Base Public RPC",
 		url: "https://base-rpc.publicnode.com",
+		enabled: true,
+	},
+	{
+		id: "rpc-base-sepolia-default",
+		network: "base-sepolia",
+		name: "Base Sepolia RPC",
+		url: "https://sepolia.base.org",
 		enabled: true,
 	},
 	{
@@ -145,10 +226,24 @@ export const initialChainConnections = [
 		enabled: true,
 	},
 	{
+		id: "rpc-bsc-testnet-default",
+		network: "bsc-testnet",
+		name: "BNB Smart Chain Testnet RPC",
+		url: "https://bsc-testnet-dataseed.bnbchain.org",
+		enabled: true,
+	},
+	{
 		id: "rpc-polygon-default",
 		network: "polygon",
 		name: "Polygon Public RPC",
 		url: "https://polygon-bor-rpc.publicnode.com",
+		enabled: true,
+	},
+	{
+		id: "rpc-polygon-amoy-default",
+		network: "polygon-amoy",
+		name: "Polygon Amoy RPC",
+		url: "https://rpc-amoy.polygon.technology",
 		enabled: true,
 	},
 	{
@@ -190,7 +285,9 @@ export const initialChainConnections = [
 ] as const;
 
 export const initialPaymentAssets = [
+	asset("simulator-usdt", "USDT", "simulator", "USDT", "native", null, 6),
 	asset("tron-trx", "TRX", "tron", "TRX", "native", null, 6),
+	asset("tron-nile-trx", "TRX", "tron-nile", "TRX", "native", null, 6),
 	asset(
 		"tron-usdt",
 		"USDT",
@@ -201,6 +298,15 @@ export const initialPaymentAssets = [
 		6,
 	),
 	asset("ethereum-eth", "ETH", "ethereum", "ETH", "native", null, 18),
+	asset(
+		"ethereum-sepolia-eth",
+		"ETH",
+		"ethereum-sepolia",
+		"ETH",
+		"native",
+		null,
+		18,
+	),
 	asset(
 		"ethereum-usdt",
 		"USDT",
@@ -220,6 +326,7 @@ export const initialPaymentAssets = [
 		6,
 	),
 	asset("base-eth", "ETH", "base", "ETH", "native", null, 18),
+	asset("base-sepolia-eth", "ETH", "base-sepolia", "ETH", "native", null, 18),
 	asset(
 		"base-usdt",
 		"USDT",
@@ -239,6 +346,7 @@ export const initialPaymentAssets = [
 		6,
 	),
 	asset("bsc-bnb", "BNB", "bsc", "BNB", "native", null, 18),
+	asset("bsc-testnet-bnb", "BNB", "bsc-testnet", "BNB", "native", null, 18),
 	asset(
 		"bsc-usdt",
 		"USDT",
@@ -258,6 +366,7 @@ export const initialPaymentAssets = [
 		18,
 	),
 	asset("polygon-matic", "MATIC", "polygon", "MATIC", "native", null, 18),
+	asset("polygon-amoy-pol", "POL", "polygon-amoy", "POL", "native", null, 18),
 	asset(
 		"polygon-usdt",
 		"USDT",
@@ -339,7 +448,7 @@ export const initialPaymentConnections = [
 		name: node.name,
 		type: "rpc" as const,
 		endpoint: node.url,
-		transport: node.url.startsWith("wss://")
+		transport: node.url?.startsWith("wss://")
 			? ("websocket" as const)
 			: ("http" as const),
 		priority: "priority" in node ? node.priority : 100,

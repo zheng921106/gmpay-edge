@@ -462,6 +462,20 @@ describe("EVM adapter", () => {
 		});
 		expect(health.detail).not.toContain("provider-secret-and-url");
 	});
+
+	it("rejects an RPC endpoint serving the wrong EVM chain", async () => {
+		vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rpc("0x1")));
+		const health = await new EvmAdapter({
+			rpcUrl: "https://sepolia.base.org",
+			network: "base-sepolia",
+			nativeAsset: "ETH",
+		}).healthCheck();
+
+		expect(health).toMatchObject({
+			healthy: false,
+			detail: "EVM health check failed: configuration",
+		});
+	});
 });
 
 function adapter() {

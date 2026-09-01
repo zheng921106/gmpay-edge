@@ -1,6 +1,7 @@
 import { officialProviderApiUrl } from "#/features/payment-settings/catalog";
 import { AptosAdapter } from "#/integrations/chains/aptos";
 import { EvmAdapter } from "#/integrations/chains/evm";
+import { SimulatorAdapter } from "#/integrations/chains/simulator";
 import { SolanaAdapter } from "#/integrations/chains/solana";
 import { TonAdapter } from "#/integrations/chains/ton";
 import { TronAdapter } from "#/integrations/chains/tron";
@@ -30,6 +31,7 @@ type MethodConnection = {
 	contract_address: string | null;
 	decimals: number;
 	native_symbol: string;
+	network_class: "mainnet" | "testnet" | "simulated";
 };
 
 export const paymentAdapterCandidateLimit = 8;
@@ -105,28 +107,31 @@ export async function createPaymentMethodAdapters(
 ) {
 	const rows = await db
 		.prepare(
-			`SELECT pc.id AS connection_id, pr.adapter, pc.transport, pc.endpoint, pc.api_key,
+			`SELECT COALESCE(pc.id, 'simulator') AS connection_id, pr.adapter,
+			 COALESCE(pc.transport, 'http') AS transport, pc.endpoint, pc.api_key,
 			 credential.config_encrypted AS credential_config_encrypted,
 			 pc.timeout_ms, pc.block_lookback, pc.log_block_range, pc.max_scan_transactions,
 			 pa.code AS asset_code,
 			 pa.rail_code,
 			 pa.kind AS asset_kind, pa.contract_address, pa.decimals,
+			 pr.network_class,
 			 COALESCE(json_extract(pr.metadata, '$.nativeSymbol'), pa.symbol) AS native_symbol
 			 FROM payment_assets pa
 				 JOIN payment_rails pr ON pr.code = pa.rail_code
-				 JOIN payment_ingresses pc ON pc.rail_code = pr.code
+				 LEFT JOIN payment_ingresses pc ON pc.rail_code = pr.code
+				  AND pc.enabled = 1
+				  AND (? = 0 OR (pc.merchant_id IS ? AND pc.environment_id IS ?))
 				 LEFT JOIN payment_ingress_credentials credential ON credential.payment_ingress_id = pc.id
 			 WHERE pa.id = ?
-			 AND pc.enabled = 1
-			 AND (? = 0 OR (pc.merchant_id IS ? AND pc.environment_id IS ?))
+			 AND (pr.network_class = 'simulated' OR pc.id IS NOT NULL)
 			 ORDER BY CASE pc.health_status WHEN 'healthy' THEN 0 WHEN 'degraded' THEN 1 ELSE 2 END,
 			 pc.priority, pc.id LIMIT ?`,
 		)
 		.bind(
-			paymentMethodId,
 			scope ? 1 : 0,
 			scope?.merchantId ?? null,
 			scope?.environmentId ?? null,
+			paymentMethodId,
 			paymentAdapterCandidateLimit,
 		)
 		.all<MethodConnection>();
@@ -188,6 +193,7 @@ export async function createPaymentConnectionAdapter(
 			 pc.timeout_ms, pc.block_lookback, pc.log_block_range, pc.max_scan_transactions,
 			 pa.code AS asset_code, pa.rail_code, pa.kind AS asset_kind,
 			 pa.contract_address, pa.decimals,
+			 pr.network_class,
 			 COALESCE(json_extract(pr.metadata, '$.nativeSymbol'), pa.symbol) AS native_symbol
 				 FROM payment_ingresses pc
 				 LEFT JOIN payment_ingress_credentials credential ON credential.payment_ingress_id = pc.id
@@ -216,6 +222,7 @@ export async function loadPaymentConnectionHealthTargets(
 			 pc.timeout_ms, pc.block_lookback, pc.log_block_range, pc.max_scan_transactions,
 			 pa.code AS asset_code, pa.rail_code, pa.kind AS asset_kind,
 			 pa.contract_address, pa.decimals,
+			 pr.network_class,
 			 COALESCE(json_extract(pr.metadata, '$.nativeSymbol'), pa.symbol) AS native_symbol
 				 FROM payment_ingresses pc
 				 LEFT JOIN payment_ingress_credentials credential ON credential.payment_ingress_id = pc.id
@@ -227,6 +234,7 @@ export async function loadPaymentConnectionHealthTargets(
 			  LIMIT 1
 			 )
 			 WHERE pc.enabled = 1 AND pr.kind = 'chain'
+			 AND pr.network_class != 'simulated'
 			 AND (pc.last_checked_at IS NULL OR pc.last_checked_at <= ?)
 			 ORDER BY pc.last_checked_at IS NOT NULL, pc.last_checked_at,
 			 pc.priority, pc.id LIMIT ?`,
@@ -253,6 +261,7 @@ export async function loadPaymentConnectionHealthTargetsByIds(
 			 pc.timeout_ms, pc.block_lookback, pc.log_block_range, pc.max_scan_transactions,
 			 pa.code AS asset_code, pa.rail_code, pa.kind AS asset_kind,
 			 pa.contract_address, pa.decimals,
+			 pr.network_class,
 			 COALESCE(json_extract(pr.metadata, '$.nativeSymbol'), pa.symbol) AS native_symbol
 				 FROM payment_ingresses pc
 				 LEFT JOIN payment_ingress_credentials credential ON credential.payment_ingress_id = pc.id
@@ -264,6 +273,7 @@ export async function loadPaymentConnectionHealthTargetsByIds(
 			  LIMIT 1
 			 )
 			 WHERE pc.enabled = 1 AND pr.kind = 'chain'
+			 AND pr.network_class != 'simulated'
 			 AND pc.id IN (${connectionIds.map(() => "?").join(",")})
 			 ORDER BY pc.id`,
 		)
@@ -283,6 +293,11 @@ async function createAdapter(
 	targetValue?: string,
 	receivingProviderConfig?: Record<string, unknown>,
 ): Promise<PaymentAdapter<unknown> | null> {
+	if (
+		connection.adapter === "simulator" &&
+		connection.network_class === "simulated"
+	)
+		return new SimulatorAdapter() as PaymentAdapter<unknown>;
 	const endpoint = connection.endpoint;
 	if (
 		endpoint &&
@@ -309,11 +324,21 @@ async function createAdapter(
 		return new TronAdapter({
 			apiUrl: endpoint,
 			apiKey,
+			network: connection.rail_code === "tron-nile" ? "tron-nile" : "tron",
 		}) as PaymentAdapter<unknown>;
 	if (
 		connection.adapter === "evm" &&
 		endpoint &&
-		["ethereum", "base", "bsc", "polygon"].includes(connection.rail_code)
+		[
+			"ethereum",
+			"ethereum-sepolia",
+			"base",
+			"base-sepolia",
+			"bsc",
+			"bsc-testnet",
+			"polygon",
+			"polygon-amoy",
+		].includes(connection.rail_code)
 	)
 		return new EvmAdapter({
 			rpcUrl: endpoint,

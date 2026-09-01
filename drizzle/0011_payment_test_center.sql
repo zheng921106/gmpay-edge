@@ -1,4 +1,18 @@
 ALTER TABLE `payment_rails` ADD `network_class` text DEFAULT 'mainnet' NOT NULL CHECK (`network_class` IN ('mainnet', 'testnet', 'simulated'));--> statement-breakpoint
+INSERT OR IGNORE INTO `payment_rails` (`code`, `name`, `kind`, `network_class`, `adapter`, `metadata`, `created_at`, `updated_at`) VALUES
+	('simulator', 'Payment Simulator', 'chain', 'simulated', 'simulator', '{"family":"simulator","nativeSymbol":"USDT"}', unixepoch() * 1000, unixepoch() * 1000),
+	('tron-nile', 'TRON Nile', 'chain', 'testnet', 'tron', '{"family":"tron","nativeSymbol":"TRX"}', unixepoch() * 1000, unixepoch() * 1000),
+	('ethereum-sepolia', 'Ethereum Sepolia', 'chain', 'testnet', 'evm', '{"family":"evm","nativeSymbol":"ETH"}', unixepoch() * 1000, unixepoch() * 1000),
+	('base-sepolia', 'Base Sepolia', 'chain', 'testnet', 'evm', '{"family":"evm","nativeSymbol":"ETH"}', unixepoch() * 1000, unixepoch() * 1000),
+	('bsc-testnet', 'BNB Smart Chain Testnet', 'chain', 'testnet', 'evm', '{"family":"evm","nativeSymbol":"BNB"}', unixepoch() * 1000, unixepoch() * 1000),
+	('polygon-amoy', 'Polygon Amoy', 'chain', 'testnet', 'evm', '{"family":"evm","nativeSymbol":"POL"}', unixepoch() * 1000, unixepoch() * 1000);--> statement-breakpoint
+INSERT OR IGNORE INTO `payment_assets` (`id`, `rail_code`, `code`, `symbol`, `kind`, `contract_address`, `decimals`, `default_confirmations`, `created_at`, `updated_at`) VALUES
+	('simulator-usdt', 'simulator', 'USDT', 'USDT', 'native', NULL, 6, 1, unixepoch() * 1000, unixepoch() * 1000),
+	('tron-nile-trx', 'tron-nile', 'TRX', 'TRX', 'native', NULL, 6, 1, unixepoch() * 1000, unixepoch() * 1000),
+	('ethereum-sepolia-eth', 'ethereum-sepolia', 'ETH', 'ETH', 'native', NULL, 18, 1, unixepoch() * 1000, unixepoch() * 1000),
+	('base-sepolia-eth', 'base-sepolia', 'ETH', 'ETH', 'native', NULL, 18, 1, unixepoch() * 1000, unixepoch() * 1000),
+	('bsc-testnet-bnb', 'bsc-testnet', 'BNB', 'BNB', 'native', NULL, 18, 1, unixepoch() * 1000, unixepoch() * 1000),
+	('polygon-amoy-pol', 'polygon-amoy', 'POL', 'POL', 'native', NULL, 18, 1, unixepoch() * 1000, unixepoch() * 1000);--> statement-breakpoint
 CREATE TABLE `payment_test_runs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`merchant_id` text NOT NULL,
