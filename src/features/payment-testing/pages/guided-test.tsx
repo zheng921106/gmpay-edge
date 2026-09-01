@@ -12,7 +12,7 @@ import {
 	ShieldCheck,
 	Square,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ProButton } from "#/components/pro/base/button";
 import { Input, Textarea } from "#/components/pro/base/fields/input";
@@ -89,7 +89,8 @@ export function PaymentTestComposer({
 		],
 		queryFn: () => getPaymentTestResourcesFn(),
 		enabled: Boolean(merchantContext),
-		staleTime: 30_000,
+		staleTime: 0,
+		refetchOnWindowFocus: "always",
 	});
 	if (!merchantContext)
 		return <EmptyState message={m.payment_test_select_environment()} />;
@@ -101,6 +102,10 @@ export function PaymentTestComposer({
 			key={`${merchantContext.merchantId}:${merchantContext.environmentId}`}
 			context={merchantContext}
 			resources={resources.data}
+			onRefreshResources={() => {
+				void resources.refetch();
+			}}
+			refreshingResources={resources.isFetching}
 			consoleMode={consoleMode}
 		/>
 	);
@@ -109,10 +114,14 @@ export function PaymentTestComposer({
 function PaymentTestWorkspace({
 	context,
 	resources,
+	onRefreshResources,
+	refreshingResources,
 	consoleMode,
 }: {
 	context: NonNullable<ReturnType<typeof useNavigation>["merchantContext"]>;
 	resources: PaymentTestResources;
+	onRefreshResources: () => void;
+	refreshingResources: boolean;
 	consoleMode: boolean;
 }) {
 	const [draft, setDraft] = useState(() =>
@@ -129,6 +138,9 @@ function PaymentTestWorkspace({
 		token: string;
 	} | null>(null);
 	const [scenarioStep, setScenarioStep] = useState(1);
+	useEffect(() => {
+		setDraft((current) => selectCompatibleMethod(current, resources));
+	}, [resources]);
 	const input = useMemo(() => buildStartInput(draft), [draft]);
 	const inputKey = input ? JSON.stringify(input) : null;
 	const evidence = useQuery({
@@ -202,6 +214,7 @@ function PaymentTestWorkspace({
 	const availableMethods = resources.receivingMethods.filter(
 		(method) => method.networkClass === networkClassForMode(draft.paymentMode),
 	);
+	const hasAvailableMethods = availableMethods.length > 0;
 	const requestPreview = {
 		method: "POST",
 		path:
@@ -344,11 +357,40 @@ function PaymentTestWorkspace({
 								onChange={(value) =>
 									selectMethod(String(value ?? ""), resources, setDraft)
 								}
+								disabled={!hasAvailableMethods}
+								placeholder={
+									hasAvailableMethods
+										? undefined
+										: m.payment_test_no_compatible_method()
+								}
 								options={availableMethods.map((method) => ({
 									value: methodValue(method),
 									label: `${method.name} · ${method.assetCode} · ${method.railName}`,
 								}))}
 							/>
+							{!hasAvailableMethods ? (
+								<div
+									data-payment-test-method-status="configuration-required"
+									className="flex flex-wrap items-center gap-2 pt-1 text-sm text-muted-foreground"
+								>
+									<span>{m.payment_test_no_compatible_method()}</span>
+									<ProButton asChild size="xs" variant="outline">
+										<a href="/admin/receiving-methods">
+											{m.receiving_methods_title()}
+										</a>
+									</ProButton>
+									<ProButton
+										data-payment-test-resources-refresh="true"
+										size="xs"
+										variant="ghost"
+										loading={refreshingResources}
+										onClick={onRefreshResources}
+									>
+										<RefreshCw />
+										{m.common_refresh()}
+									</ProButton>
+								</div>
+							) : null}
 						</FormItem>
 						<FormItem label={m.payment_test_amount()} required>
 							<Input
@@ -835,15 +877,40 @@ function selectMode(
 	resources: PaymentTestResources,
 	setDraft: React.Dispatch<React.SetStateAction<PaymentTestDraft>>,
 ) {
-	const method = resources.receivingMethods.find(
-		(item) => item.networkClass === networkClassForMode(mode),
-	);
+	const method = firstCompatibleMethod(resources, mode);
 	setDraft((current) => ({
 		...current,
 		paymentMode: mode,
 		receivingMethodId: method?.id ?? "",
 		paymentAssetId: method?.assetId ?? "",
 	}));
+}
+function selectCompatibleMethod(
+	draft: PaymentTestDraft,
+	resources: PaymentTestResources,
+) {
+	const selected = resources.receivingMethods.find(
+		(item) =>
+			item.id === draft.receivingMethodId &&
+			item.assetId === draft.paymentAssetId &&
+			item.networkClass === networkClassForMode(draft.paymentMode),
+	);
+	if (selected) return draft;
+	const method = firstCompatibleMethod(resources, draft.paymentMode);
+	if (!method) return draft;
+	return {
+		...draft,
+		receivingMethodId: method.id,
+		paymentAssetId: method.assetId,
+	};
+}
+function firstCompatibleMethod(
+	resources: PaymentTestResources,
+	mode: PaymentTestMode,
+) {
+	return resources.receivingMethods.find(
+		(item) => item.networkClass === networkClassForMode(mode),
+	);
 }
 function selectMethod(
 	value: string,
