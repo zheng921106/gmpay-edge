@@ -1060,7 +1060,6 @@
 	"webhooks_processing_rejected": "Rejected",
 	"settings_background_image_description": "Upload the background image used by checkout and branded pages",
 	"settings_support_url_description": "Optional customer-service link shown on checkout pages",
-	"checkout_open_source_on": "Open source",
 	"auth_brand_eyebrow": "Multi-chain payment gateway",
 	"auth_brand_title": "Payments built for the edge",
 	"auth_brand_description": "Run orders, payment detection, webhooks, and access control from one secure console",

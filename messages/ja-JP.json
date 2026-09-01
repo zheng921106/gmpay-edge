@@ -1058,7 +1058,6 @@
   "webhooks_processing_rejected": "拒否されました",
   "settings_background_image_description": "チェックアウトとブランドページで使用する背景画像をアップロードします",
   "settings_support_url_description": "チェックアウトページに表示されるオプションのカスタマーサービスリンク",
-  "checkout_open_source_on": "オープンソース",
   "auth_brand_eyebrow": "マルチチェーン決済ゲートウェイ",
   "auth_brand_title": "エッジ向けに構築された決済",
   "auth_brand_description": "1 つの安全なコンソールから注文、支払い検出、Webhook、アクセス制御を実行します",

@@ -1060,7 +1060,6 @@
 	"webhooks_processing_rejected": "已拒绝",
 	"settings_background_image_description": "上传用于收银台和品牌页面的背景图",
 	"settings_support_url_description": "可选的收银台客服链接",
-	"checkout_open_source_on": "开源项目",
 	"auth_brand_eyebrow": "多链支付网关",
 	"auth_brand_title": "为边缘网络而生的支付系统",
 	"auth_brand_description": "在同一个安全后台管理订单、支付检测、Webhook 与访问权限",

@@ -1058,7 +1058,6 @@
   "webhooks_processing_rejected": "거부됨",
   "settings_background_image_description": "결제 및 브랜드 페이지에 사용할 배경 이미지를 업로드하세요",
   "settings_support_url_description": "결제 페이지에 표시되는 선택적 고객 서비스 링크",
-  "checkout_open_source_on": "오픈 소스",
   "auth_brand_eyebrow": "다중 체인 결제 게이트웨이",
   "auth_brand_title": "엣지를 위해 구축된 결제",
   "auth_brand_description": "하나의 보안 콘솔에서 주문, 결제 감지, 웹훅 및 액세스 제어를 실행하세요.",

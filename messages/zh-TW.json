@@ -1060,7 +1060,6 @@
 	"webhooks_processing_rejected": "已拒絕",
 	"settings_background_image_description": "上傳用於收銀臺和品牌頁面的背景圖",
 	"settings_support_url_description": "可選的收銀臺客服連結",
-	"checkout_open_source_on": "開源專案",
 	"auth_brand_eyebrow": "多鏈支付閘道",
 	"auth_brand_title": "為邊緣網路而生的支付系統",
 	"auth_brand_description": "在同一個安全後台管理訂單、支付偵測、Webhook 與存取權限",

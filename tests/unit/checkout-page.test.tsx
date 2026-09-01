@@ -146,6 +146,12 @@ describe("checkout page", () => {
 		expect(checkoutSurface?.className).toContain("text-foreground");
 		expect(container.textContent).toContain("Payment to Merchant North");
 		expect(container.textContent).toContain("Sandbox");
+		expect(
+			container.querySelector(
+				'a[href="https://github.com/GMwalletApp/gmpay-edge"]',
+			),
+		).toBeNull();
+		expect(container.textContent).not.toContain("Open source");
 	});
 });
 
