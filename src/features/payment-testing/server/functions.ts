@@ -56,43 +56,116 @@ export const listPaymentTestRunsFn = createServerFn({ method: "GET" })
 			permissionMask: 1,
 		});
 		const filters = ["merchant_id = ?", "environment_id = ?"];
-		const parameters: Array<string | number> = [
+		const baseParameters: Array<string | number> = [
 			access.context.merchantId,
 			access.context.environmentId,
 		];
 		if (data.status) {
 			filters.push("status = ?");
-			parameters.push(data.status);
+			baseParameters.push(data.status);
 		}
+		const cursorFilters = [...filters];
+		const cursorParameters = [...baseParameters];
 		if (data.cursor) {
-			filters.push("(created_at < ? OR (created_at = ? AND id < ?))");
-			parameters.push(
+			cursorFilters.push("(created_at < ? OR (created_at = ? AND id < ?))");
+			cursorParameters.push(
 				data.cursor.createdAt,
 				data.cursor.createdAt,
 				data.cursor.id,
 			);
 		}
-		const result = await db
-			.prepare(
-				`SELECT id, protocol, payment_mode, status, expected_outcome,
+		const [countResult, pageResult] = await db.batch([
+			db
+				.prepare(
+					`SELECT COUNT(*) AS total FROM payment_test_runs WHERE ${filters.join(" AND ")}`,
+				)
+				.bind(...baseParameters),
+			db
+				.prepare(
+					`SELECT id, protocol, payment_mode, status, expected_outcome,
 				 callback_mode, callback_destination_snapshot, scenario, scenario_step,
 				 order_id, external_order_id, failure_code, started_at, completed_at, created_at
 				 FROM payment_test_runs
-				 WHERE ${filters.join(" AND ")}
+				 WHERE ${cursorFilters.join(" AND ")}
 				 ORDER BY created_at DESC, id DESC LIMIT ?`,
-			)
-			.bind(...parameters, data.pageSize + 1)
-			.all<PaymentTestRunListRow>();
+				)
+				.bind(...cursorParameters, data.pageSize + 1),
+		]);
+		const count = countResult?.results?.[0] as { total: number } | undefined;
+		const result = pageResult as D1Result<PaymentTestRunListRow>;
 		const page = result.results.slice(0, data.pageSize);
 		const last = page.at(-1);
 		return {
 			items: page.map(toPaymentTestRunListItem),
+			total: count?.total ?? 0,
 			nextCursor:
 				result.results.length > data.pageSize && last
 					? { createdAt: last.created_at, id: last.id }
 					: null,
 		};
 	});
+
+export const getPaymentTestResourcesFn = createServerFn({
+	method: "GET",
+}).handler(async () => {
+	const { db, access } = await merchantContext({
+		module: "merchant",
+		permissionMask: 1,
+	});
+	const scope = access.context;
+	const [keyResult, methodResult] = await db.batch([
+		db
+			.prepare(
+				`SELECT id, name, pid FROM api_keys
+					 WHERE merchant_id = ? AND environment_id = ? AND enabled = 1
+					 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
+					 AND instr(scopes, 'orders:create') > 0
+					 ORDER BY name, id`,
+			)
+			.bind(scope.merchantId, scope.environmentId, Date.now()),
+		db
+			.prepare(
+				`SELECT method.id, method.name, method.rail_code,
+					 asset.id AS asset_id, asset.code AS asset_code,
+					 rail.name AS rail_name, rail.network_class
+					 FROM receiving_methods method
+					 JOIN receiving_method_assets link ON link.receiving_method_id = method.id
+					 JOIN payment_assets asset ON asset.id = link.payment_asset_id
+					 JOIN payment_rails rail ON rail.code = method.rail_code
+					 WHERE method.merchant_id = ? AND method.environment_id = ?
+					 AND method.enabled = 1
+					 ORDER BY method.sort_order, method.name, asset.code`,
+			)
+			.bind(scope.merchantId, scope.environmentId),
+	]);
+	const keys = keyResult as D1Result<{
+		id: string;
+		name: string;
+		pid: string;
+	}>;
+	const methods = methodResult as D1Result<{
+		id: string;
+		name: string;
+		rail_code: string;
+		asset_id: string;
+		asset_code: string;
+		rail_name: string;
+		network_class: "simulated" | "testnet" | "mainnet";
+	}>;
+	return {
+		environment: scope.environment,
+		apiKeys: keys.results,
+		receivingMethods: methods.results.map((method) => ({
+			id: method.id,
+			name: method.name,
+			railCode: method.rail_code,
+			railName: method.rail_name,
+			networkClass: method.network_class,
+			assetId: method.asset_id,
+			assetCode: method.asset_code,
+		})),
+	};
+});
 
 export const getPaymentTestRunFn = createServerFn({ method: "GET" })
 	.validator((input) => paymentTestRunIdSchema.parse(input))

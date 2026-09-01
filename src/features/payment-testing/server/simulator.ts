@@ -2,6 +2,7 @@ import type { OrderStatus } from "#/features/orders/schema";
 import { assertPaymentModeAllowed } from "#/features/payment-testing/environment";
 import {
 	type MerchantAccessContext,
+	simulatorScenarioSteps,
 	simulatorScenarios,
 } from "#/features/payment-testing/types";
 import { expireOrder } from "#/features/payments/server/expiration";
@@ -16,18 +17,6 @@ import { minorToDecimal } from "#/lib/units";
 export { simulatorScenarios } from "#/features/payment-testing/types";
 
 export type SimulatorScenario = (typeof simulatorScenarios)[number];
-
-const scenarioSteps = {
-	exact_success: 1,
-	partial_then_complete: 2,
-	overpayment: 1,
-	confirmation_progression: 2,
-	failed_transaction: 1,
-	duplicate_delivery: 1,
-	late_payment: 1,
-	reorg_then_recover: 3,
-	callback_failure_then_retry: 1,
-} as const satisfies Record<SimulatorScenario, number>;
 
 type SimulatorRunRow = {
 	order_id: string;
@@ -182,7 +171,7 @@ function assertScenarioStep(
 	if (
 		!Number.isInteger(step) ||
 		step < 1 ||
-		step > scenarioSteps[scenario] ||
+		step > simulatorScenarioSteps[scenario] ||
 		(!isNext && !isReplay)
 	)
 		throw invalidScenarioStep();

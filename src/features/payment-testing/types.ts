@@ -37,6 +37,18 @@ export const simulatorScenarios = [
 	"callback_failure_then_retry",
 ] as const;
 
+export const simulatorScenarioSteps = {
+	exact_success: 1,
+	partial_then_complete: 2,
+	overpayment: 1,
+	confirmation_progression: 2,
+	failed_transaction: 1,
+	duplicate_delivery: 1,
+	late_payment: 1,
+	reorg_then_recover: 3,
+	callback_failure_then_retry: 1,
+} as const satisfies Record<(typeof simulatorScenarios)[number], number>;
+
 export type PaymentNetworkClass = (typeof paymentNetworkClasses)[number];
 export type PaymentEnvironmentCode = (typeof paymentEnvironmentCodes)[number];
 export type PaymentTestProtocol = (typeof paymentTestProtocols)[number];

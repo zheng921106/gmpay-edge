@@ -38,6 +38,12 @@ type RunSummary = {
 	order_id: string | null;
 	order_status: OrderStatus | null;
 	external_order_id: string;
+	callback_destination_snapshot: string;
+	request_snapshot: string | null;
+	response_snapshot: string | null;
+	failure_code: string | null;
+	started_at: number | null;
+	completed_at: number | null;
 	created_at: number;
 };
 
@@ -123,9 +129,11 @@ export async function loadPaymentTestTimeline(
 			`SELECT run.id, run.protocol, run.payment_mode, run.status,
 			 run.expected_outcome, run.callback_mode, run.scenario, run.scenario_step,
 			 run.order_id, order_record.status AS order_status,
-			 order_record.external_order_id, run.created_at
+			 run.external_order_id, run.callback_destination_snapshot,
+			 run.request_snapshot, run.response_snapshot, run.failure_code,
+			 run.started_at, run.completed_at, run.created_at
 			 FROM payment_test_runs run
-			 JOIN orders order_record ON order_record.id = run.order_id
+			 LEFT JOIN orders order_record ON order_record.id = run.order_id
 			 WHERE run.id = ? AND run.merchant_id = ? AND run.environment_id = ?
 			 LIMIT 1`,
 		)
@@ -178,6 +186,14 @@ export async function loadPaymentTestTimeline(
 			orderId: run.order_id,
 			orderStatus: run.order_status,
 			externalOrderId: run.external_order_id,
+			callbackDestination: serializableDetail(
+				parseDetail(run.callback_destination_snapshot),
+			),
+			requestSnapshot: serializableDetail(parseDetail(run.request_snapshot)),
+			responseSnapshot: serializableDetail(parseDetail(run.response_snapshot)),
+			failureCode: run.failure_code,
+			startedAt: run.started_at,
+			completedAt: run.completed_at,
 			createdAt: run.created_at,
 		},
 		events,

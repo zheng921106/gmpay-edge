@@ -87,7 +87,14 @@ const permissionContracts = [
 	["merchant:delete", ["revokeApiKeyFn"]],
 	["orders:read", ["listAdminOrdersFn"]],
 	["merchant:read", ["listMerchantOrdersFn"]],
-	["merchant:read", ["listPaymentTestRunsFn", "getPaymentTestRunFn"]],
+	[
+		"merchant:read",
+		[
+			"listPaymentTestRunsFn",
+			"getPaymentTestResourcesFn",
+			"getPaymentTestRunFn",
+		],
+	],
 	[
 		"merchant:create",
 		[
