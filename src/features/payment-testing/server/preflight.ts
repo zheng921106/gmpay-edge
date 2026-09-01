@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { checkReceivingMethodReadiness } from "#/features/payment-settings/server/check-method-readiness";
+import { refreshPaymentConnectionHealthByIds } from "#/features/payment-settings/server/connection-health";
 import { assertPaymentModeAllowed } from "#/features/payment-testing/environment";
 import {
 	type PaymentTestStartInput,
@@ -126,7 +127,7 @@ export async function preflightPaymentTest(
 		input.paymentMode,
 		row.network_class,
 	);
-	const readiness = await checkReceivingMethodReadiness(
+	let readiness = await checkReceivingMethodReadiness(
 		db,
 		row.receiving_method_id,
 		{
@@ -136,6 +137,45 @@ export async function preflightPaymentTest(
 			paymentMode: input.paymentMode,
 		},
 	);
+	if (!readiness.ready && readiness.status === "unhealthy") {
+		const connections = await db
+			.prepare(
+				`SELECT DISTINCT connection.id
+				 FROM receiving_methods method
+				 JOIN receiving_method_assets method_asset
+				  ON method_asset.receiving_method_id = method.id
+				 JOIN payment_assets asset ON asset.id = method_asset.payment_asset_id
+				 JOIN payment_ingresses connection
+				  ON connection.rail_code = asset.rail_code
+				 AND connection.enabled = 1
+				 AND connection.merchant_id = ?
+				 AND connection.environment_id = ?
+				 WHERE method.id = ? AND asset.rail_code = ?`,
+			)
+			.bind(
+				context.merchantId,
+				context.environmentId,
+				row.receiving_method_id,
+				row.rail_code,
+			)
+			.all<{ id: string }>();
+		if (connections.results.length) {
+			await refreshPaymentConnectionHealthByIds(
+				db,
+				connections.results.map((connection) => connection.id),
+			);
+			readiness = await checkReceivingMethodReadiness(
+				db,
+				row.receiving_method_id,
+				{
+					merchantId: context.merchantId,
+					environmentId: context.environmentId,
+					environmentCode: row.environment_code,
+					paymentMode: input.paymentMode,
+				},
+			);
+		}
+	}
 	if (!readiness.ready)
 		throw new DomainError(
 			"payment_test_method_not_ready",

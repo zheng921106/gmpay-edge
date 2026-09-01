@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { confirmProductionPaymentTestRun } from "#/features/payment-testing/server/confirmation";
 import { startPaymentTestRun } from "#/features/payment-testing/server/runs";
 import {
@@ -94,6 +94,53 @@ describe("production payment test confirmation", () => {
 				},
 			),
 		).rejects.toMatchObject({ code: "payment_test_confirmation_invalid" });
+	});
+
+	it("refreshes an unhealthy production connection before confirmation", async () => {
+		await fixture.db
+			.prepare(
+				"UPDATE payment_ingresses SET health_status = 'unhealthy' WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'tron'",
+			)
+			.bind(
+				fixture.merchant.merchantId,
+				fixture.merchant.environmentIds.production,
+			)
+			.run();
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					blockID:
+						"0000000000000000000000000000000000000000000000000000000000000000",
+					block_header: { raw_data: { number: 1 } },
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+		);
+		try {
+			const pending = await startPaymentTestRun(
+				fixture.runtime,
+				fixture.productionContext,
+				liveInput("REFRESH-HEALTH"),
+			);
+			expect(pending).toMatchObject({
+				confirmationRequired: true,
+				status: "ready",
+				orderId: null,
+			});
+			expect(
+				await fixture.db
+					.prepare(
+						"SELECT health_status FROM payment_ingresses WHERE merchant_id = ? AND environment_id = ? AND rail_code = 'tron'",
+					)
+					.bind(
+						fixture.merchant.merchantId,
+						fixture.merchant.environmentIds.production,
+					)
+					.first(),
+			).toEqual({ health_status: "healthy" });
+		} finally {
+			fetchMock.mockRestore();
+		}
 	});
 
 	it("rejects expired tokens and changed bound input", async () => {
