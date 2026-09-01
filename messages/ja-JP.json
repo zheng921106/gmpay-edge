@@ -987,6 +987,7 @@
   "payment_test_operation_failed": "決済テスト操作に失敗しました",
   "payment_test_error_invalid_input": "テストパラメータが無効です。ページを更新して再試行してください。",
   "payment_test_error_configuration_required": "選択した API 認証情報、受取方法、または環境の準備ができていません。設定を確認して再試行してください。",
+  "payment_test_error_receiving_target_invalid": "受取アドレスが無効です。受取方法で有効なアドレスに更新してから再試行してください。",
   "payment_test_error_permission_denied": "この決済テストを実行する権限がありません。",
   "payment_test_error_queue_unavailable": "決済テストサービスは一時的に利用できません。しばらくしてから再試行してください。",
   "payment_test_readiness": "準備状態",

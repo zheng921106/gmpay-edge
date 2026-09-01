@@ -6,11 +6,13 @@ import { AccessDeniedError } from "#/features/access/server/access-cache";
 import { requireMerchantAccess } from "#/features/access/server/merchant-access";
 import { systemPermission } from "#/features/access/system-rbac";
 import { paymentSettingsError } from "#/features/payment-settings/errors";
+import { ReceivingMethodNotReadyError } from "#/features/payment-settings/readiness";
 import {
 	parseReceivingUsdLimits,
 	receivingLimitDecimals,
 } from "#/features/payment-settings/receiving-method-limits";
 import { adminContext } from "#/features/payment-settings/server/admin-context";
+import { assertReceivingMethodReadyForEnable } from "#/features/payment-settings/server/check-method-readiness";
 import { deleteReceivingMethod } from "#/features/payment-settings/server/delete-receiving-method";
 import { parseReceivingProviderConfiguration } from "#/features/payment-settings/server/provider-config";
 import { unitsToDecimal } from "#/lib/money";
@@ -506,6 +508,19 @@ export const setReceivingMethodEnabledFn = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const context = await receivingMethodContext("update");
+		if (data.enabled) {
+			try {
+				await assertReceivingMethodReadyForEnable(
+					context.db,
+					data.id,
+					context.scope,
+				);
+			} catch (error) {
+				if (error instanceof ReceivingMethodNotReadyError)
+					throw paymentSettingsError("receiving_method_not_ready");
+				throw error;
+			}
+		}
 		const now = Date.now();
 		const [result] = await context.db.batch([
 			context.db

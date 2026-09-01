@@ -1,6 +1,8 @@
 import { m } from "#/paraglide/messages";
 
 export function paymentTestOperationErrorMessage(error: unknown) {
+	if (paymentTestRequiresReceivingMethodConfiguration(error))
+		return m.payment_test_error_receiving_target_invalid();
 	const code = errorCode(error);
 	switch (code) {
 		case "invalid_input":
@@ -42,6 +44,12 @@ export function paymentTestOperationErrorMessage(error: unknown) {
 		default:
 			return m.payment_test_operation_failed();
 	}
+}
+
+export function paymentTestRequiresReceivingMethodConfiguration(
+	error: unknown,
+) {
+	return errorMessage(error) === "The receiving target is invalid.";
 }
 
 function errorCode(error: unknown) {

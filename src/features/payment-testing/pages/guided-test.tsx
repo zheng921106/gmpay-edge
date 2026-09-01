@@ -22,7 +22,10 @@ import { FormItem, ProForm } from "#/components/pro/form";
 import { Badge } from "#/components/ui/badge";
 import { EnvironmentBoundary } from "#/features/payment-testing/components/environment-boundary";
 import { simulatorScenarioLabel } from "#/features/payment-testing/components/labels";
-import { paymentTestOperationErrorMessage } from "#/features/payment-testing/error-message";
+import {
+	paymentTestOperationErrorMessage,
+	paymentTestRequiresReceivingMethodConfiguration,
+} from "#/features/payment-testing/error-message";
 import {
 	advanceSimulatorScenarioFn,
 	cancelPaymentTestRunFn,
@@ -129,6 +132,10 @@ function PaymentTestWorkspace({
 		defaultPaymentTestValues(resources, context.environment),
 	);
 	const [readyInput, setReadyInput] = useState<string | null>(null);
+	const [
+		preflightNeedsReceivingMethodConfiguration,
+		setPreflightNeedsReceivingMethodConfiguration,
+	] = useState(false);
 	const [activeRun, setActiveRun] = useState<{
 		runId: string;
 		orderId: string | null;
@@ -154,9 +161,15 @@ function PaymentTestWorkspace({
 		mutationFn: preflightPaymentTestFn,
 		onSuccess: () => {
 			setReadyInput(inputKey);
+			setPreflightNeedsReceivingMethodConfiguration(false);
 			toast.success(m.payment_test_preflight_ready());
 		},
-		onError: showPaymentTestError,
+		onError: (error) => {
+			setPreflightNeedsReceivingMethodConfiguration(
+				paymentTestRequiresReceivingMethodConfiguration(error),
+			);
+			showPaymentTestError(error);
+		},
 	});
 	const start = useMutation({
 		mutationFn: startPaymentTestRunFn,
@@ -536,6 +549,9 @@ function PaymentTestWorkspace({
 							ready={inputKey !== null && readyInput === inputKey}
 							resources={resources}
 							selectedMethod={selectedMethod}
+							needsReceivingMethodConfiguration={
+								preflightNeedsReceivingMethodConfiguration
+							}
 						/>
 					)}
 					{activeRun ? (
@@ -688,10 +704,12 @@ function ReadinessSummary({
 	ready,
 	resources,
 	selectedMethod,
+	needsReceivingMethodConfiguration,
 }: {
 	ready: boolean;
 	resources: PaymentTestResources;
 	selectedMethod: PaymentTestResources["receivingMethods"][number] | undefined;
+	needsReceivingMethodConfiguration: boolean;
 }) {
 	return (
 		<section className="space-y-4" aria-label={m.payment_test_readiness()}>
@@ -719,6 +737,20 @@ function ReadinessSummary({
 					}
 				/>
 			</div>
+			{needsReceivingMethodConfiguration ? (
+				<div
+					className="space-y-3 border border-destructive/30 bg-destructive/5 p-3 text-sm"
+					data-payment-test-method-status="invalid-target"
+				>
+					<p>{m.payment_test_error_receiving_target_invalid()}</p>
+					<ProButton asChild size="sm" variant="outline">
+						<Link to="/admin/receiving-methods">
+							{m.receiving_methods_title()}
+							<ArrowRight />
+						</Link>
+					</ProButton>
+				</div>
+			) : null}
 		</section>
 	);
 }

@@ -160,10 +160,12 @@ export async function checkReceivingMethodReadiness(
 export async function assertReceivingMethodReadyForEnable(
 	db: D1Database,
 	methodId: string,
+	scope?: { merchantId: string; environmentId: string },
 ) {
 	const readiness = await checkReceivingMethodReadiness(db, methodId, {
 		requireEnabled: false,
 		validateTarget: true,
+		...scope,
 	});
 	if (!readiness.ready) throw new ReceivingMethodNotReadyError(readiness);
 	return readiness;

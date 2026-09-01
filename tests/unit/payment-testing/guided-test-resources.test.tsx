@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { AnchorHTMLAttributes } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -22,8 +23,18 @@ const serverFunctions = vi.hoisted(() => ({
 
 vi.mock("#/features/payment-testing/server/functions", () => serverFunctions);
 
+vi.mock("@tanstack/react-router", () => ({
+	Link: ({
+		to,
+		...props
+	}: { to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
+		<a href={to} {...props} />
+	),
+}));
+
 import { PaymentTestComposer } from "#/features/payment-testing/pages/guided-test";
 import { NavigationProvider } from "#/layouts/components/navigation-context";
+import { m } from "#/paraglide/messages";
 
 describe("payment test receiving method resources", () => {
 	afterEach(() => {
@@ -97,6 +108,51 @@ describe("payment test receiving method resources", () => {
 				'[data-payment-test-method-status="configuration-required"]',
 			),
 		).toBeNull();
+
+		await fixture.unmount();
+	});
+
+	it("explains an invalid receiving address and links to its configuration", async () => {
+		serverFunctions.getPaymentTestResourcesFn.mockResolvedValue({
+			environment: "production",
+			apiKeys: [{ id: "key-1", name: "Live", pid: "pid-live" }],
+			receivingMethods: [
+				{
+					id: "method-1",
+					name: "Main collection",
+					railCode: "bsc",
+					railName: "BNB Smart Chain",
+					networkClass: "mainnet",
+					assetId: "bsc-bnb",
+					assetCode: "BNB",
+				},
+			],
+		});
+		serverFunctions.preflightPaymentTestFn.mockRejectedValue(
+			new Error("The receiving target is invalid."),
+		);
+		const fixture = await renderPaymentTestComposer();
+
+		await waitFor(() =>
+			fixture.container.textContent?.includes("BNB Smart Chain"),
+		);
+		const readiness = [...fixture.container.querySelectorAll("button")].find(
+			(button) =>
+				button.textContent?.includes(m.payment_test_check_readiness()),
+		);
+		expect(readiness).toBeTruthy();
+		await act(async () => readiness?.click());
+
+		await waitFor(() =>
+			fixture.container.querySelector(
+				'[data-payment-test-method-status="invalid-target"]',
+			),
+		);
+		expect(
+			fixture.container.querySelector(
+				'[data-payment-test-method-status="invalid-target"] a[href="/admin/receiving-methods"]',
+			),
+		).not.toBeNull();
 
 		await fixture.unmount();
 	});

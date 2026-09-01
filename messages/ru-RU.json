@@ -987,6 +987,7 @@
   "payment_test_operation_failed": "Операция платежного теста завершилась ошибкой",
   "payment_test_error_invalid_input": "Параметры теста недействительны. Обновите страницу и повторите попытку.",
   "payment_test_error_configuration_required": "Выбранные учетные данные API, способ получения или среда не готовы. Проверьте настройки и повторите попытку.",
+  "payment_test_error_receiving_target_invalid": "Адрес получения недействителен. Обновите его в способах получения и повторите попытку.",
   "payment_test_error_permission_denied": "У вашей учетной записи нет прав на выполнение этого платежного теста.",
   "payment_test_error_queue_unavailable": "Сервис платежного тестирования временно недоступен. Повторите попытку позже.",
   "payment_test_readiness": "Готовность",

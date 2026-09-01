@@ -985,6 +985,7 @@
 	"payment_test_operation_failed": "支付测试操作失败",
 	"payment_test_error_invalid_input": "测试参数无效，请刷新页面后重试。",
 	"payment_test_error_configuration_required": "所选 API 凭证、收款方式或环境尚未就绪，请检查配置后重试。",
+	"payment_test_error_receiving_target_invalid": "收款地址无效，请前往收款方式更新有效地址后重试。",
 	"payment_test_error_permission_denied": "当前账号没有运行此支付测试的权限。",
 	"payment_test_error_queue_unavailable": "支付测试服务暂时不可用，请稍后重试。",
 	"payment_test_readiness": "就绪状态",

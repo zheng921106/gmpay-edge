@@ -34,6 +34,10 @@ describe("payment test error presentation", () => {
 	it.each([
 		[new Error("Invalid request"), m.payment_test_error_invalid_input()],
 		[new Error("Forbidden"), m.payment_test_error_permission_denied()],
+		[
+			new Error("The receiving target is invalid."),
+			m.payment_test_error_receiving_target_invalid(),
+		],
 	] as const)("maps safe server message %s when the error code is unavailable", (error, message) => {
 		expect(paymentTestOperationErrorMessage(error)).toBe(message);
 	});

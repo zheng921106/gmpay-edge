@@ -985,6 +985,7 @@
 	"payment_test_operation_failed": "Payment test operation failed",
 	"payment_test_error_invalid_input": "Test parameters are invalid. Refresh the page and try again.",
 	"payment_test_error_configuration_required": "The selected credential, receiving method, or environment is not ready. Review its configuration and try again.",
+	"payment_test_error_receiving_target_invalid": "The receiving address is invalid. Update it in Receiving methods and try again.",
 	"payment_test_error_permission_denied": "Your account cannot run this payment test.",
 	"payment_test_error_queue_unavailable": "Payment test processing is temporarily unavailable. Try again shortly.",
 	"payment_test_readiness": "Readiness",
