@@ -90,5 +90,48 @@ describe("admin route navigation", () => {
 			merchantAccess,
 			user: merchantAccess.user,
 		});
+		await expect(
+			loader({
+				location: {
+					href: "/admin/test-center/runs",
+					pathname: "/admin/test-center/runs",
+				},
+			}),
+		).resolves.toMatchObject({ merchantContext: merchantAccess.context });
+	});
+
+	it("admits platform root with a selected merchant environment", async () => {
+		const access = {
+			id: "root-user",
+			name: "Root",
+			email: "root@example.com",
+			enabled: true,
+			updatedAt: new Date(0),
+			roles: ["root"],
+			root: true,
+			permissions: [],
+		};
+		const merchantContext = {
+			merchantId: "merchant-a",
+			environmentId: "environment-sandbox",
+			environment: "sandbox",
+		};
+		auth.getAdminBootstrapFn.mockResolvedValue({
+			installed: true,
+			access,
+			merchantContext,
+		});
+		const { Route } = await import("#/routes/admin/route");
+		const loader = Route.options.loader as (input: {
+			location: { href: string; pathname: string };
+		}) => Promise<unknown>;
+		await expect(
+			loader({
+				location: {
+					href: "/admin/test-center",
+					pathname: "/admin/test-center",
+				},
+			}),
+		).resolves.toMatchObject({ merchantContext });
 	});
 });

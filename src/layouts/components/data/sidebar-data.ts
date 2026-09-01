@@ -13,6 +13,7 @@ import {
 	Settings,
 	ShieldCheck,
 	ShieldEllipsis,
+	TestTube2,
 	Users,
 	WalletCards,
 	Webhook,
@@ -37,6 +38,7 @@ export type NavigationModuleId =
 	| "reviews"
 	| "receiving-methods"
 	| "api-keys"
+	| "test-center"
 	| "webhooks"
 	| "telegram"
 	| "email"
@@ -163,6 +165,35 @@ export const navigationGroups: readonly NavigationGroup[] = [
 		id: "integrations",
 		title: () => m.nav_group_open_integrations(),
 		modules: [
+			{
+				id: "test-center",
+				title: () => m.payment_test_center_title(),
+				icon: TestTube2,
+				entries: [
+					entry(
+						"test-center-guided",
+						() => m.payment_test_guided_title(),
+						"/admin/test-center",
+						TestTube2,
+						systemPermission("orders", "read"),
+					),
+					entry(
+						"test-center-console",
+						() => m.payment_test_console_title(),
+						"/admin/test-center/console",
+						KeyRound,
+						systemPermission("orders", "read"),
+					),
+					entry(
+						"test-center-runs",
+						() => m.payment_test_runs_title(),
+						"/admin/test-center/runs",
+						Activity,
+						systemPermission("orders", "read"),
+						["/admin/test-center/runs/"],
+					),
+				],
+			},
 			{
 				id: "api-keys",
 				title: () => m.api_keys_title(),
@@ -436,14 +467,19 @@ export const navigationGroups: readonly NavigationGroup[] = [
 export function visibleModuleEntries(
 	moduleId: NavigationModuleId,
 	permissions: readonly SystemPermissionGrant[],
+	merchantPermissions: readonly MerchantPermissionGrant[] = [],
 ) {
 	const module = navigationGroups
 		.flatMap((group) => group.modules)
 		.find((candidate) => candidate.id === moduleId);
-	return (
-		module?.entries.filter((item) =>
-			hasSystemPermission(permissions, item.permission),
-		) ?? []
+	if (!module) return [];
+	if (
+		moduleId === "test-center" &&
+		hasMerchantPermission(merchantPermissions, "merchant", 1)
+	)
+		return [...module.entries];
+	return module.entries.filter((item) =>
+		hasSystemPermission(permissions, item.permission),
 	);
 }
 
@@ -526,6 +562,13 @@ export function merchantSidebarData(
 						icon: WalletCards,
 					},
 					{
+						id: "test-center",
+						title: m.payment_test_center_title(),
+						url: "/admin/test-center",
+						icon: TestTube2,
+						activePrefixes: ["/admin/test-center/"],
+					},
+					{
 						id: "receiving-methods",
 						title: m.receiving_methods_title(),
 						url: "/admin/receiving-methods",
@@ -559,6 +602,8 @@ export function canAccessMerchantPath(
 		hasMerchantPermission(permissions, "merchant", 1) &&
 		(normalized === "/admin" ||
 			normalized === "/admin/orders" ||
+			normalized === "/admin/test-center" ||
+			normalized.startsWith("/admin/test-center/") ||
 			normalized === "/admin/receiving-methods" ||
 			normalized === "/admin/api-keys" ||
 			normalized === "/admin/merchant/members")
@@ -579,6 +624,8 @@ export function permissionForAdminPath(
 		return systemPermission("users", "read");
 	if (/^\/admin\/webhooks\/[^/]+$/.test(normalized))
 		return systemPermission("webhooks", "read");
+	if (/^\/admin\/test-center\/runs\/[^/]+$/.test(normalized))
+		return systemPermission("orders", "read");
 	return undefined;
 }
 

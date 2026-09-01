@@ -37,6 +37,7 @@ import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as authResetPasswordRouteImport } from './routes/(auth)/reset-password'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AdminWebhooksRouteRouteImport } from './routes/admin/webhooks/route'
+import { Route as AdminTestCenterRouteRouteImport } from './routes/admin/test-center/route'
 import { Route as AdminTelegramRouteRouteImport } from './routes/admin/telegram/route'
 import { Route as AdminSettingsRouteRouteImport } from './routes/admin/settings/route'
 import { Route as AdminReceivingMethodsRouteRouteImport } from './routes/admin/receiving-methods/route'
@@ -44,6 +45,7 @@ import { Route as AdminPaymentSettingsRouteRouteImport } from './routes/admin/pa
 import { Route as AdminOperationsRouteRouteImport } from './routes/admin/operations/route'
 import { Route as AdminAccessRouteRouteImport } from './routes/admin/access/route'
 import { Route as AdminWebhooksIndexRouteImport } from './routes/admin/webhooks/index'
+import { Route as AdminTestCenterIndexRouteImport } from './routes/admin/test-center/index'
 import { Route as AdminTelegramIndexRouteImport } from './routes/admin/telegram/index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin/settings/index'
 import { Route as AdminReceivingMethodsIndexRouteImport } from './routes/admin/receiving-methods/index'
@@ -55,6 +57,8 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AdminWebhooksRecordsRouteImport } from './routes/admin/webhooks/records'
 import { Route as AdminWebhooksProviderEventsRouteImport } from './routes/admin/webhooks/provider-events'
 import { Route as AdminWebhooksInboundRecordsRouteImport } from './routes/admin/webhooks/inbound-records'
+import { Route as AdminTestCenterRunsRouteImport } from './routes/admin/test-center/runs'
+import { Route as AdminTestCenterConsoleRouteImport } from './routes/admin/test-center/console'
 import { Route as AdminTelegramNotificationsRouteImport } from './routes/admin/telegram/notifications'
 import { Route as AdminTelegramCommandsRouteImport } from './routes/admin/telegram/commands'
 import { Route as AdminSettingsWebhooksRouteImport } from './routes/admin/settings/webhooks'
@@ -81,6 +85,7 @@ import { Route as ApiTelegramBotIdWebhookRouteImport } from './routes/api/telegr
 import { Route as ApiProvidersOkpayNotifyRouteImport } from './routes/api/providers/okpay/notify'
 import { Route as ApiProvidersAlchemySourceIdRouteImport } from './routes/api/providers/alchemy/$sourceId'
 import { Route as ApiCheckoutOrderIdReviewRouteImport } from './routes/api/checkout/$orderId/review'
+import { Route as AdminTestCenterRunsRunIdRouteImport } from './routes/admin/test-center/runs/$runId'
 import { Route as AdminPaymentSettingsRatesFiatRouteImport } from './routes/admin/payment-settings/rates/fiat'
 import { Route as PaymentsGmpayV1OrderQueryRouteImport } from './routes/payments/gmpay/v1/order/query'
 import { Route as PaymentsGmpayV1OrderCreateTransactionRouteImport } from './routes/payments/gmpay/v1/order/create-transaction'
@@ -227,6 +232,11 @@ const AdminWebhooksRouteRoute = AdminWebhooksRouteRouteImport.update({
   path: '/webhooks',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminTestCenterRouteRoute = AdminTestCenterRouteRouteImport.update({
+  id: '/test-center',
+  path: '/test-center',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminTelegramRouteRoute = AdminTelegramRouteRouteImport.update({
   id: '/telegram',
   path: '/telegram',
@@ -263,6 +273,11 @@ const AdminWebhooksIndexRoute = AdminWebhooksIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminWebhooksRouteRoute,
+} as any)
+const AdminTestCenterIndexRoute = AdminTestCenterIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminTestCenterRouteRoute,
 } as any)
 const AdminTelegramIndexRoute = AdminTelegramIndexRouteImport.update({
   id: '/',
@@ -323,6 +338,16 @@ const AdminWebhooksInboundRecordsRoute =
     path: '/inbound-records',
     getParentRoute: () => AdminWebhooksRouteRoute,
   } as any)
+const AdminTestCenterRunsRoute = AdminTestCenterRunsRouteImport.update({
+  id: '/runs',
+  path: '/runs',
+  getParentRoute: () => AdminTestCenterRouteRoute,
+} as any)
+const AdminTestCenterConsoleRoute = AdminTestCenterConsoleRouteImport.update({
+  id: '/console',
+  path: '/console',
+  getParentRoute: () => AdminTestCenterRouteRoute,
+} as any)
 const AdminTelegramNotificationsRoute =
   AdminTelegramNotificationsRouteImport.update({
     id: '/notifications',
@@ -462,6 +487,12 @@ const ApiCheckoutOrderIdReviewRoute =
     path: '/api/checkout/$orderId/review',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AdminTestCenterRunsRunIdRoute =
+  AdminTestCenterRunsRunIdRouteImport.update({
+    id: '/$runId',
+    path: '/$runId',
+    getParentRoute: () => AdminTestCenterRunsRoute,
+  } as any)
 const AdminPaymentSettingsRatesFiatRoute =
   AdminPaymentSettingsRatesFiatRouteImport.update({
     id: '/fiat',
@@ -514,6 +545,7 @@ export interface FileRoutesByFullPath {
   '/admin/receiving-methods': typeof AdminReceivingMethodsRouteRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteRouteWithChildren
   '/admin/telegram': typeof AdminTelegramRouteRouteWithChildren
+  '/admin/test-center': typeof AdminTestCenterRouteRouteWithChildren
   '/admin/webhooks': typeof AdminWebhooksRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
   '/reset-password': typeof authResetPasswordRoute
@@ -559,6 +591,8 @@ export interface FileRoutesByFullPath {
   '/admin/settings/webhooks': typeof AdminSettingsWebhooksRoute
   '/admin/telegram/commands': typeof AdminTelegramCommandsRoute
   '/admin/telegram/notifications': typeof AdminTelegramNotificationsRoute
+  '/admin/test-center/console': typeof AdminTestCenterConsoleRoute
+  '/admin/test-center/runs': typeof AdminTestCenterRunsRouteWithChildren
   '/admin/webhooks/inbound-records': typeof AdminWebhooksInboundRecordsRoute
   '/admin/webhooks/provider-events': typeof AdminWebhooksProviderEventsRoute
   '/admin/webhooks/records': typeof AdminWebhooksRecordsRoute
@@ -570,8 +604,10 @@ export interface FileRoutesByFullPath {
   '/admin/receiving-methods/': typeof AdminReceivingMethodsIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/telegram/': typeof AdminTelegramIndexRoute
+  '/admin/test-center/': typeof AdminTestCenterIndexRoute
   '/admin/webhooks/': typeof AdminWebhooksIndexRoute
   '/admin/payment-settings/rates/fiat': typeof AdminPaymentSettingsRatesFiatRoute
+  '/admin/test-center/runs/$runId': typeof AdminTestCenterRunsRunIdRoute
   '/api/checkout/$orderId/review': typeof ApiCheckoutOrderIdReviewRoute
   '/api/providers/alchemy/$sourceId': typeof ApiProvidersAlchemySourceIdRoute
   '/api/providers/okpay/notify': typeof ApiProvidersOkpayNotifyRoute
@@ -629,6 +665,8 @@ export interface FileRoutesByTo {
   '/admin/settings/webhooks': typeof AdminSettingsWebhooksRoute
   '/admin/telegram/commands': typeof AdminTelegramCommandsRoute
   '/admin/telegram/notifications': typeof AdminTelegramNotificationsRoute
+  '/admin/test-center/console': typeof AdminTestCenterConsoleRoute
+  '/admin/test-center/runs': typeof AdminTestCenterRunsRouteWithChildren
   '/admin/webhooks/inbound-records': typeof AdminWebhooksInboundRecordsRoute
   '/admin/webhooks/provider-events': typeof AdminWebhooksProviderEventsRoute
   '/admin/webhooks/records': typeof AdminWebhooksRecordsRoute
@@ -640,8 +678,10 @@ export interface FileRoutesByTo {
   '/admin/receiving-methods': typeof AdminReceivingMethodsIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/telegram': typeof AdminTelegramIndexRoute
+  '/admin/test-center': typeof AdminTestCenterIndexRoute
   '/admin/webhooks': typeof AdminWebhooksIndexRoute
   '/admin/payment-settings/rates/fiat': typeof AdminPaymentSettingsRatesFiatRoute
+  '/admin/test-center/runs/$runId': typeof AdminTestCenterRunsRunIdRoute
   '/api/checkout/$orderId/review': typeof ApiCheckoutOrderIdReviewRoute
   '/api/providers/alchemy/$sourceId': typeof ApiProvidersAlchemySourceIdRoute
   '/api/providers/okpay/notify': typeof ApiProvidersOkpayNotifyRoute
@@ -666,6 +706,7 @@ export interface FileRoutesById {
   '/admin/receiving-methods': typeof AdminReceivingMethodsRouteRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteRouteWithChildren
   '/admin/telegram': typeof AdminTelegramRouteRouteWithChildren
+  '/admin/test-center': typeof AdminTestCenterRouteRouteWithChildren
   '/admin/webhooks': typeof AdminWebhooksRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/reset-password': typeof authResetPasswordRoute
@@ -711,6 +752,8 @@ export interface FileRoutesById {
   '/admin/settings/webhooks': typeof AdminSettingsWebhooksRoute
   '/admin/telegram/commands': typeof AdminTelegramCommandsRoute
   '/admin/telegram/notifications': typeof AdminTelegramNotificationsRoute
+  '/admin/test-center/console': typeof AdminTestCenterConsoleRoute
+  '/admin/test-center/runs': typeof AdminTestCenterRunsRouteWithChildren
   '/admin/webhooks/inbound-records': typeof AdminWebhooksInboundRecordsRoute
   '/admin/webhooks/provider-events': typeof AdminWebhooksProviderEventsRoute
   '/admin/webhooks/records': typeof AdminWebhooksRecordsRoute
@@ -722,8 +765,10 @@ export interface FileRoutesById {
   '/admin/receiving-methods/': typeof AdminReceivingMethodsIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/telegram/': typeof AdminTelegramIndexRoute
+  '/admin/test-center/': typeof AdminTestCenterIndexRoute
   '/admin/webhooks/': typeof AdminWebhooksIndexRoute
   '/admin/payment-settings/rates/fiat': typeof AdminPaymentSettingsRatesFiatRoute
+  '/admin/test-center/runs/$runId': typeof AdminTestCenterRunsRunIdRoute
   '/api/checkout/$orderId/review': typeof ApiCheckoutOrderIdReviewRoute
   '/api/providers/alchemy/$sourceId': typeof ApiProvidersAlchemySourceIdRoute
   '/api/providers/okpay/notify': typeof ApiProvidersOkpayNotifyRoute
@@ -747,6 +792,7 @@ export interface FileRouteTypes {
     | '/admin/receiving-methods'
     | '/admin/settings'
     | '/admin/telegram'
+    | '/admin/test-center'
     | '/admin/webhooks'
     | '/forgot-password'
     | '/reset-password'
@@ -792,6 +838,8 @@ export interface FileRouteTypes {
     | '/admin/settings/webhooks'
     | '/admin/telegram/commands'
     | '/admin/telegram/notifications'
+    | '/admin/test-center/console'
+    | '/admin/test-center/runs'
     | '/admin/webhooks/inbound-records'
     | '/admin/webhooks/provider-events'
     | '/admin/webhooks/records'
@@ -803,8 +851,10 @@ export interface FileRouteTypes {
     | '/admin/receiving-methods/'
     | '/admin/settings/'
     | '/admin/telegram/'
+    | '/admin/test-center/'
     | '/admin/webhooks/'
     | '/admin/payment-settings/rates/fiat'
+    | '/admin/test-center/runs/$runId'
     | '/api/checkout/$orderId/review'
     | '/api/providers/alchemy/$sourceId'
     | '/api/providers/okpay/notify'
@@ -862,6 +912,8 @@ export interface FileRouteTypes {
     | '/admin/settings/webhooks'
     | '/admin/telegram/commands'
     | '/admin/telegram/notifications'
+    | '/admin/test-center/console'
+    | '/admin/test-center/runs'
     | '/admin/webhooks/inbound-records'
     | '/admin/webhooks/provider-events'
     | '/admin/webhooks/records'
@@ -873,8 +925,10 @@ export interface FileRouteTypes {
     | '/admin/receiving-methods'
     | '/admin/settings'
     | '/admin/telegram'
+    | '/admin/test-center'
     | '/admin/webhooks'
     | '/admin/payment-settings/rates/fiat'
+    | '/admin/test-center/runs/$runId'
     | '/api/checkout/$orderId/review'
     | '/api/providers/alchemy/$sourceId'
     | '/api/providers/okpay/notify'
@@ -898,6 +952,7 @@ export interface FileRouteTypes {
     | '/admin/receiving-methods'
     | '/admin/settings'
     | '/admin/telegram'
+    | '/admin/test-center'
     | '/admin/webhooks'
     | '/(auth)/forgot-password'
     | '/(auth)/reset-password'
@@ -943,6 +998,8 @@ export interface FileRouteTypes {
     | '/admin/settings/webhooks'
     | '/admin/telegram/commands'
     | '/admin/telegram/notifications'
+    | '/admin/test-center/console'
+    | '/admin/test-center/runs'
     | '/admin/webhooks/inbound-records'
     | '/admin/webhooks/provider-events'
     | '/admin/webhooks/records'
@@ -954,8 +1011,10 @@ export interface FileRouteTypes {
     | '/admin/receiving-methods/'
     | '/admin/settings/'
     | '/admin/telegram/'
+    | '/admin/test-center/'
     | '/admin/webhooks/'
     | '/admin/payment-settings/rates/fiat'
+    | '/admin/test-center/runs/$runId'
     | '/api/checkout/$orderId/review'
     | '/api/providers/alchemy/$sourceId'
     | '/api/providers/okpay/notify'
@@ -1194,6 +1253,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminWebhooksRouteRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/test-center': {
+      id: '/admin/test-center'
+      path: '/test-center'
+      fullPath: '/admin/test-center'
+      preLoaderRoute: typeof AdminTestCenterRouteRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/telegram': {
       id: '/admin/telegram'
       path: '/telegram'
@@ -1242,6 +1308,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/webhooks/'
       preLoaderRoute: typeof AdminWebhooksIndexRouteImport
       parentRoute: typeof AdminWebhooksRouteRoute
+    }
+    '/admin/test-center/': {
+      id: '/admin/test-center/'
+      path: '/'
+      fullPath: '/admin/test-center/'
+      preLoaderRoute: typeof AdminTestCenterIndexRouteImport
+      parentRoute: typeof AdminTestCenterRouteRoute
     }
     '/admin/telegram/': {
       id: '/admin/telegram/'
@@ -1319,6 +1392,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/webhooks/inbound-records'
       preLoaderRoute: typeof AdminWebhooksInboundRecordsRouteImport
       parentRoute: typeof AdminWebhooksRouteRoute
+    }
+    '/admin/test-center/runs': {
+      id: '/admin/test-center/runs'
+      path: '/runs'
+      fullPath: '/admin/test-center/runs'
+      preLoaderRoute: typeof AdminTestCenterRunsRouteImport
+      parentRoute: typeof AdminTestCenterRouteRoute
+    }
+    '/admin/test-center/console': {
+      id: '/admin/test-center/console'
+      path: '/console'
+      fullPath: '/admin/test-center/console'
+      preLoaderRoute: typeof AdminTestCenterConsoleRouteImport
+      parentRoute: typeof AdminTestCenterRouteRoute
     }
     '/admin/telegram/notifications': {
       id: '/admin/telegram/notifications'
@@ -1501,6 +1588,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/checkout/$orderId/review'
       preLoaderRoute: typeof ApiCheckoutOrderIdReviewRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/test-center/runs/$runId': {
+      id: '/admin/test-center/runs/$runId'
+      path: '/$runId'
+      fullPath: '/admin/test-center/runs/$runId'
+      preLoaderRoute: typeof AdminTestCenterRunsRunIdRouteImport
+      parentRoute: typeof AdminTestCenterRunsRoute
     }
     '/admin/payment-settings/rates/fiat': {
       id: '/admin/payment-settings/rates/fiat'
@@ -1720,6 +1814,32 @@ const AdminTelegramRouteRouteChildren: AdminTelegramRouteRouteChildren = {
 const AdminTelegramRouteRouteWithChildren =
   AdminTelegramRouteRoute._addFileChildren(AdminTelegramRouteRouteChildren)
 
+interface AdminTestCenterRunsRouteChildren {
+  AdminTestCenterRunsRunIdRoute: typeof AdminTestCenterRunsRunIdRoute
+}
+
+const AdminTestCenterRunsRouteChildren: AdminTestCenterRunsRouteChildren = {
+  AdminTestCenterRunsRunIdRoute: AdminTestCenterRunsRunIdRoute,
+}
+
+const AdminTestCenterRunsRouteWithChildren =
+  AdminTestCenterRunsRoute._addFileChildren(AdminTestCenterRunsRouteChildren)
+
+interface AdminTestCenterRouteRouteChildren {
+  AdminTestCenterConsoleRoute: typeof AdminTestCenterConsoleRoute
+  AdminTestCenterRunsRoute: typeof AdminTestCenterRunsRouteWithChildren
+  AdminTestCenterIndexRoute: typeof AdminTestCenterIndexRoute
+}
+
+const AdminTestCenterRouteRouteChildren: AdminTestCenterRouteRouteChildren = {
+  AdminTestCenterConsoleRoute: AdminTestCenterConsoleRoute,
+  AdminTestCenterRunsRoute: AdminTestCenterRunsRouteWithChildren,
+  AdminTestCenterIndexRoute: AdminTestCenterIndexRoute,
+}
+
+const AdminTestCenterRouteRouteWithChildren =
+  AdminTestCenterRouteRoute._addFileChildren(AdminTestCenterRouteRouteChildren)
+
 interface AdminWebhooksRouteRouteChildren {
   AdminWebhooksInboundRecordsRoute: typeof AdminWebhooksInboundRecordsRoute
   AdminWebhooksProviderEventsRoute: typeof AdminWebhooksProviderEventsRoute
@@ -1744,6 +1864,7 @@ interface AdminRouteRouteChildren {
   AdminReceivingMethodsRouteRoute: typeof AdminReceivingMethodsRouteRouteWithChildren
   AdminSettingsRouteRoute: typeof AdminSettingsRouteRouteWithChildren
   AdminTelegramRouteRoute: typeof AdminTelegramRouteRouteWithChildren
+  AdminTestCenterRouteRoute: typeof AdminTestCenterRouteRouteWithChildren
   AdminWebhooksRouteRoute: typeof AdminWebhooksRouteRouteWithChildren
   AdminApiKeysRoute: typeof AdminApiKeysRoute
   AdminEmailRoute: typeof AdminEmailRoute
@@ -1761,6 +1882,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminReceivingMethodsRouteRoute: AdminReceivingMethodsRouteRouteWithChildren,
   AdminSettingsRouteRoute: AdminSettingsRouteRouteWithChildren,
   AdminTelegramRouteRoute: AdminTelegramRouteRouteWithChildren,
+  AdminTestCenterRouteRoute: AdminTestCenterRouteRouteWithChildren,
   AdminWebhooksRouteRoute: AdminWebhooksRouteRouteWithChildren,
   AdminApiKeysRoute: AdminApiKeysRoute,
   AdminEmailRoute: AdminEmailRoute,

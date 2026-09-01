@@ -13,10 +13,22 @@ describe("merchant sidebar", () => {
 			navigation.navGroups.flatMap((group) =>
 				group.items.map((item) => item.id),
 			),
-		).toEqual(["orders", "receiving-methods", "api-keys", "merchant-members"]);
+		).toEqual([
+			"orders",
+			"test-center",
+			"receiving-methods",
+			"api-keys",
+			"merchant-members",
+		]);
 		expect(
 			canAccessMerchantPath(
 				"/admin/receiving-methods",
+				readMerchantPermissions,
+			),
+		).toBe(true);
+		expect(
+			canAccessMerchantPath(
+				"/admin/test-center/runs/11111111-1111-4111-8111-111111111111",
 				readMerchantPermissions,
 			),
 		).toBe(true);

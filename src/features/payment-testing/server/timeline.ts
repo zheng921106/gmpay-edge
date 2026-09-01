@@ -1,5 +1,9 @@
 import type { OrderStatus } from "#/features/orders/schema";
 import type { MerchantAccessContext } from "#/features/payment-testing/types";
+import {
+	type WebhookJsonValue,
+	webhookJsonValueSchema,
+} from "#/features/webhooks/types";
 import { DomainError } from "#/lib/domain-error";
 import { redactSerializedAuditValue } from "#/server/audit-redaction";
 
@@ -19,7 +23,7 @@ export type PaymentTestTimelineEvent = {
 	occurredAt: number;
 	priority: number;
 	status: string | null;
-	detail: unknown;
+	detail: WebhookJsonValue;
 };
 
 type RunSummary = {
@@ -31,8 +35,8 @@ type RunSummary = {
 	callback_mode: "builtin" | "custom";
 	scenario: string | null;
 	scenario_step: number;
-	order_id: string;
-	order_status: OrderStatus;
+	order_id: string | null;
+	order_status: OrderStatus | null;
 	external_order_id: string;
 	created_at: number;
 };
@@ -57,7 +61,7 @@ export async function reconcilePaymentTestRun(db: D1Database, runId: string) {
 			 EXISTS(SELECT 1 FROM webhook_deliveries delivery
 			  WHERE delivery.order_id = run.order_id AND delivery.status = 'dead') AS dead_delivery
 			 FROM payment_test_runs run
-			 JOIN orders order_record ON order_record.id = run.order_id
+			 LEFT JOIN orders order_record ON order_record.id = run.order_id
 			 WHERE run.id = ? LIMIT 1`,
 		)
 		.bind(runId)
@@ -148,10 +152,11 @@ export async function loadPaymentTestTimeline(
 				occurredAt: row.occurred_at,
 				priority: row.priority,
 				status: row.status,
-				detail:
+				detail: serializableDetail(
 					row.kind === "audit.recorded"
 						? redactSerializedAuditValue(row.detail)
 						: parseDetail(row.detail),
+				),
 			}),
 		)
 		.sort(
@@ -294,10 +299,15 @@ function expectedOutcomeReached(
 	}
 }
 
-function parseDetail(value: string | null) {
+function parseDetail(value: string | null): unknown {
 	try {
 		return value === null ? null : (JSON.parse(value) as unknown);
 	} catch {
 		return null;
 	}
+}
+
+function serializableDetail(value: unknown): WebhookJsonValue {
+	const parsed = webhookJsonValueSchema.safeParse(value);
+	return parsed.success ? parsed.data : null;
 }

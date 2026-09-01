@@ -16,6 +16,7 @@ const adminServerModules = [
 	"src/features/payment-settings/server/connection-functions.ts",
 	"src/features/payment-settings/server/methods.ts",
 	"src/features/payment-settings/server/rate-functions.ts",
+	"src/features/payment-testing/server/functions.ts",
 	"src/features/payments/server/admin.ts",
 	"src/features/settings/server/admin.ts",
 	"src/features/settings/server/email.ts",
@@ -86,6 +87,24 @@ const permissionContracts = [
 	["merchant:delete", ["revokeApiKeyFn"]],
 	["orders:read", ["listAdminOrdersFn"]],
 	["merchant:read", ["listMerchantOrdersFn"]],
+	["merchant:read", ["listPaymentTestRunsFn", "getPaymentTestRunFn"]],
+	[
+		"merchant:create",
+		[
+			"preflightPaymentTestFn",
+			"startPaymentTestRunFn",
+			"confirmProductionPaymentTestRunFn",
+		],
+	],
+	[
+		"merchant:update",
+		[
+			"advanceSimulatorScenarioFn",
+			"refreshRealPaymentTestRunFn",
+			"retryPaymentTestWebhookFn",
+			"cancelPaymentTestRunFn",
+		],
+	],
 	["orders:create", ["createDevelopmentOrderFn"]],
 	[
 		"orders:update",

@@ -1,6 +1,9 @@
 import type { OrderStatus } from "#/features/orders/schema";
 import { assertPaymentModeAllowed } from "#/features/payment-testing/environment";
-import type { MerchantAccessContext } from "#/features/payment-testing/types";
+import {
+	type MerchantAccessContext,
+	simulatorScenarios,
+} from "#/features/payment-testing/types";
 import { expireOrder } from "#/features/payments/server/expiration";
 import type { PaymentRuntime } from "#/features/payments/server/payment-events";
 import { recordPaymentTransaction } from "#/features/payments/server/process";
@@ -10,17 +13,7 @@ import { DomainError } from "#/lib/domain-error";
 import { unitsToDecimal } from "#/lib/money";
 import { minorToDecimal } from "#/lib/units";
 
-export const simulatorScenarios = [
-	"exact_success",
-	"partial_then_complete",
-	"overpayment",
-	"confirmation_progression",
-	"failed_transaction",
-	"duplicate_delivery",
-	"late_payment",
-	"reorg_then_recover",
-	"callback_failure_then_retry",
-] as const;
+export { simulatorScenarios } from "#/features/payment-testing/types";
 
 export type SimulatorScenario = (typeof simulatorScenarios)[number];
 

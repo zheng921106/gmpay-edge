@@ -27,6 +27,12 @@ export const Route = createFileRoute("/admin")({
 		if (systemAccess) {
 			if (systemAccess.enabled === false) throw redirect({ to: "/403" });
 			if (
+				(location.pathname === "/admin/test-center" ||
+					location.pathname.startsWith("/admin/test-center/")) &&
+				!bootstrap.merchantContext
+			)
+				throw redirect({ to: "/403" });
+			if (
 				location.pathname !== "/admin" &&
 				location.pathname !== "/admin/" &&
 				!canAccessAdminPath(location.pathname, systemAccess.permissions)

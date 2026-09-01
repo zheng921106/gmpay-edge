@@ -25,6 +25,17 @@ export const paymentTestExpectedOutcomes = [
 	"reorg_recovered",
 	"callback_retry_succeeded",
 ] as const;
+export const simulatorScenarios = [
+	"exact_success",
+	"partial_then_complete",
+	"overpayment",
+	"confirmation_progression",
+	"failed_transaction",
+	"duplicate_delivery",
+	"late_payment",
+	"reorg_then_recover",
+	"callback_failure_then_retry",
+] as const;
 
 export type PaymentNetworkClass = (typeof paymentNetworkClasses)[number];
 export type PaymentEnvironmentCode = (typeof paymentEnvironmentCodes)[number];

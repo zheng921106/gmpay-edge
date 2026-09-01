@@ -17,11 +17,15 @@ export function ModuleNavigation({
 	children: ReactNode;
 }) {
 	const navigate = useNavigate();
-	const { permissions } = useNavigation();
+	const { permissions, merchantPermissions } = useNavigation();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname.replace(/\/$/, ""),
 	});
-	const entries = visibleModuleEntries(moduleId, permissions);
+	const entries = visibleModuleEntries(
+		moduleId,
+		permissions,
+		merchantPermissions,
+	);
 	const items = entries.map((item) => ({
 		value: item.id,
 		title: item.title(),

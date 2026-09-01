@@ -3,6 +3,7 @@ import {
 	paymentTestExpectedOutcomes,
 	paymentTestModes,
 	paymentTestProtocols,
+	simulatorScenarios,
 } from "#/features/payment-testing/types";
 import { DomainError } from "#/lib/domain-error";
 
@@ -42,6 +43,34 @@ export const paymentTestStartInputSchema = z.object({
 });
 
 export type PaymentTestStartInput = z.input<typeof paymentTestStartInputSchema>;
+
+export const paymentTestRunIdSchema = z.object({ runId: z.uuid() });
+
+export const paymentTestRunListSchema = z.object({
+	pageSize: z.number().int().min(1).max(100).default(20),
+	status: z
+		.enum(["ready", "running", "passed", "failed", "cancelled", "expired"])
+		.optional(),
+	cursor: z
+		.object({
+			createdAt: z.number().int().nonnegative(),
+			id: z.uuid(),
+		})
+		.optional(),
+});
+
+export const paymentTestConfirmationSchema = paymentTestRunIdSchema.extend({
+	confirmationToken: z.string().min(32).max(4096),
+});
+
+export const paymentTestScenarioSchema = paymentTestRunIdSchema.extend({
+	scenario: z.enum(simulatorScenarios),
+	step: z.number().int().min(1).max(3),
+});
+
+export const paymentTestWebhookRetrySchema = paymentTestRunIdSchema.extend({
+	deliveryId: z.uuid(),
+});
 
 export function parsePaymentTestStartInput(value: unknown) {
 	const parsed = paymentTestStartInputSchema.safeParse(value);
