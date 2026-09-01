@@ -261,6 +261,15 @@ export function ReceivingMethodsPage() {
 				description={m.receiving_methods_description()}
 				schema={[
 					{ name: "name", label: m.common_name(), required: true },
+					...(editingMethod?.target_type === "address"
+						? [
+								{
+									name: "address",
+									label: m.receiving_address(),
+									required: true,
+								},
+							]
+						: []),
 					{
 						name: "minAmount",
 						label: `${m.pro_field_minimumValue()} (USD)`,
@@ -274,6 +283,10 @@ export function ReceivingMethodsPage() {
 					editingMethod
 						? {
 								name: editingMethod.name,
+								address:
+									editingMethod.target_type === "address"
+										? editingMethod.target_value
+										: undefined,
 								minAmount: editingMethod.min_amount ?? "",
 								maxAmount: editingMethod.max_amount ?? "",
 							}
@@ -285,6 +298,10 @@ export function ReceivingMethodsPage() {
 						data: {
 							id: editingMethod.id,
 							name: String(values.name ?? ""),
+							address:
+								editingMethod.target_type === "address"
+									? String(values.address ?? "")
+									: undefined,
 							minAmount: optionalString(values.minAmount),
 							maxAmount: optionalString(values.maxAmount),
 						},

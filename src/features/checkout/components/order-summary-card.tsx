@@ -42,8 +42,10 @@ export function OrderSummaryCard({
 	const showOrderAmountDetail = amountMode === "payment";
 
 	return (
-		<section className="mb-4 w-full border border-white/15 bg-[#10130f] px-5 pt-5 pb-4 text-[#f5f4ed] shadow-[8px_8px_0_0_rgba(182,255,67,0.12)] sm:px-6 sm:pt-6">
-			<p className="mb-1 font-medium text-[#9da098] text-sm">{amountLabel}</p>
+		<section className="mb-4 w-full border border-border bg-card px-5 pt-5 pb-4 text-card-foreground shadow-[8px_8px_0_0_rgba(16,185,129,0.12)] dark:shadow-[8px_8px_0_0_rgba(182,255,67,0.12)] sm:px-6 sm:pt-6">
+			<p className="mb-1 font-medium text-muted-foreground text-sm">
+				{amountLabel}
+			</p>
 			<div className="flex items-end justify-between gap-3">
 				<ScaledAmountText>{topAmount}</ScaledAmountText>
 				<CopyIconButton onClick={onCopyAmount} />
@@ -65,15 +67,15 @@ export function OrderSummaryCard({
 					/>
 				</div>
 			) : null}
-			<div className="mt-4 border-white/15 border-t pt-3">
-				<table className="w-full border-separate border-spacing-y-1 text-[#9da098] text-sm">
+			<div className="mt-4 border-border border-t pt-3">
+				<table className="w-full border-separate border-spacing-y-1 text-muted-foreground text-sm">
 					<tbody>
 						{showOrderAmountDetail ? (
 							<tr>
 								<td className="w-px whitespace-nowrap pr-3">
 									{m.checkout_order_amount()}
 								</td>
-								<td className="whitespace-nowrap font-medium text-[#f5f4ed]">
+								<td className="whitespace-nowrap font-medium text-foreground">
 									{formatOrderAmount(order)}
 								</td>
 							</tr>
@@ -82,7 +84,7 @@ export function OrderSummaryCard({
 							<td className="w-px whitespace-nowrap pr-3">
 								{m.checkout_order_id()}
 							</td>
-							<td className="break-all font-medium text-[#f5f4ed]">
+							<td className="break-all font-medium text-foreground">
 								{order?.trade_id ?? tradeId}
 							</td>
 						</tr>

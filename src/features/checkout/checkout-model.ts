@@ -11,6 +11,8 @@ export type PaymentFlowKind = "chain" | "okpay";
 export interface CheckoutOrder {
 	trade_id: string;
 	external_order_id?: string;
+	merchant_name?: string;
+	environment?: "sandbox" | "production";
 	amount: string;
 	actual_amount?: string;
 	token?: string;

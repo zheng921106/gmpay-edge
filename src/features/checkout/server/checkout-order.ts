@@ -11,8 +11,9 @@ export async function getCheckoutOrderWithDatabase(
 	const row = await db
 		.prepare(
 			`SELECT o.id, o.external_order_id, o.status, o.amount_minor, o.currency,
-			 o.currency_decimals, o.payment_url, o.received_amount_units, o.return_url, o.expires_at,
-			 ops.expected_amount_units,
+				 o.currency_decimals, o.payment_url, o.received_amount_units, o.return_url, o.expires_at,
+				 merchant.name AS merchant_name, environment.code AS environment,
+				 ops.expected_amount_units,
 			 COALESCE(ops.asset_code, a.code) AS code,
 			 COALESCE(ops.decimals, a.decimals) AS decimals,
 			 COALESCE(ops.rail_code, a.rail_code) AS network,
@@ -21,8 +22,10 @@ export async function getCheckoutOrderWithDatabase(
 			 COALESCE(ops.required_confirmations, 1) AS required_confirmations,
 			 (SELECT pr.status FROM payment_reviews pr WHERE pr.order_id = o.id
 			  ORDER BY pr.created_at DESC LIMIT 1) AS review_status
-			 FROM orders o
-			 LEFT JOIN payment_assets a ON a.id = o.payment_asset_id
+				 FROM orders o
+				 LEFT JOIN merchants merchant ON merchant.id = o.merchant_id
+				 LEFT JOIN merchant_environments environment ON environment.id = o.environment_id
+				 LEFT JOIN payment_assets a ON a.id = o.payment_asset_id
 			 LEFT JOIN order_payment_snapshots ops ON ops.order_id = o.id
 			 LEFT JOIN order_payments op ON op.order_id = o.id
 			 WHERE o.id = ?
@@ -33,6 +36,8 @@ export async function getCheckoutOrderWithDatabase(
 		.first<{
 			id: string;
 			external_order_id: string;
+			merchant_name: string | null;
+			environment: "sandbox" | "production" | null;
 			status: OrderStatus;
 			amount_minor: string;
 			currency: string;
@@ -59,6 +64,8 @@ export async function getCheckoutOrderWithDatabase(
 	return {
 		trade_id: row.id,
 		external_order_id: row.external_order_id,
+		...(row.merchant_name ? { merchant_name: row.merchant_name } : {}),
+		...(row.environment ? { environment: row.environment } : {}),
 		amount: minorToDecimal(row.amount_minor, row.currency_decimals),
 		...(actualAmount ? { actual_amount: actualAmount } : {}),
 		...(row.payment_url ? { payment_url: row.payment_url } : {}),

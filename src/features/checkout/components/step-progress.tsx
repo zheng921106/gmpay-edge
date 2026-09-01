@@ -43,10 +43,10 @@ export function StepProgress({
 		<div className="mb-4 flex w-full items-center gap-2">
 			{Array.from({ length: totalSteps }, (_, index) => index + 1).map(
 				(step) => (
-					<div className="h-px flex-1 overflow-hidden bg-white/20" key={step}>
+					<div className="h-px flex-1 overflow-hidden bg-border" key={step}>
 						<div
 							className={cn(
-								"h-full bg-[#b6ff43] transition-all",
+								"h-full bg-emerald-500 transition-all dark:bg-[#b6ff43]",
 								currentStep >= step ? "w-full" : "w-0",
 							)}
 						/>

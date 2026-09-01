@@ -235,6 +235,7 @@
 	"merchant_context_loading": "正在加载商户",
 	"merchant_environment_sandbox": "沙盒",
 	"merchant_environment_production": "生产环境",
+	"checkout_merchant_payment": "向 {merchantName} 付款",
 	"merchant_members_title": "团队成员",
 	"merchant_members_description": "可访问当前商户的用户",
 	"merchant_members_add": "添加成员",

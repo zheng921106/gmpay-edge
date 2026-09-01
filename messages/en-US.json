@@ -235,6 +235,7 @@
 	"merchant_context_loading": "Loading merchant",
 	"merchant_environment_sandbox": "Sandbox",
 	"merchant_environment_production": "Production",
+	"checkout_merchant_payment": "Payment to {merchantName}",
 	"merchant_members_title": "Team members",
 	"merchant_members_description": "Users with access to the current merchant",
 	"merchant_members_add": "Add member",

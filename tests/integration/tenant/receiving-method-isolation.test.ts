@@ -54,6 +54,55 @@ describe("merchant receiving-method isolation", () => {
 				.first(),
 		).resolves.toEqual({ id: "method-b" });
 	});
+
+	it("updates only the selected merchant address and preserves existing order snapshots", async () => {
+		const methodsModule = await import(
+			"#/features/payment-settings/server/methods"
+		);
+		const updateReceivingMethod = Reflect.get(
+			methodsModule,
+			"updateReceivingMethod",
+		) as
+			| ((
+					db: D1Database,
+					input: {
+						id: string;
+						name: string;
+						address: string;
+					},
+					audit: typeof emptyAudit,
+					scope: typeof merchantA,
+			  ) => Promise<unknown>)
+			| undefined;
+		expect(typeof updateReceivingMethod).toBe("function");
+		if (!updateReceivingMethod) return;
+
+		await updateReceivingMethod(
+			db,
+			{
+				id: "method-a",
+				name: "Merchant A USDT",
+				address: "TA-new",
+			},
+			emptyAudit,
+			merchantA,
+		);
+
+		await expect(
+			db
+				.prepare(
+					`SELECT
+					 (SELECT target_value FROM receiving_methods WHERE id = 'method-a') AS method_a_target,
+					 (SELECT target_value FROM receiving_methods WHERE id = 'method-b') AS method_b_target,
+					 (SELECT target_value FROM order_payment_snapshots WHERE order_id = 'order-a') AS snapshot_target`,
+				)
+				.first(),
+		).resolves.toEqual({
+			method_a_target: "TA-new",
+			method_b_target: "TB",
+			snapshot_target: "TA",
+		});
+	});
 });
 
 const emptyAudit = {
@@ -98,5 +147,15 @@ async function seed(db: D1Database) {
 				 ('method-b', 'merchant-b', 'merchant-b-production', 'Merchant B USDT', 'tron', 'address', 'TB', 'tb', 1, ?, ?)`,
 			)
 			.bind(now, now, now, now),
+		db
+			.prepare(
+				"INSERT INTO orders (id, merchant_id, environment_id, external_order_id, status, amount_minor, currency, currency_decimals, payment_asset_id, received_amount_units, expires_at, created_at, updated_at) VALUES ('order-a', 'merchant-a', 'merchant-a-production', 'external-a', 'pending', '100', 'USD', 2, 'tron-usdt', '0', ?, ?, ?)",
+			)
+			.bind(now + 900_000, now, now),
+		db
+			.prepare(
+				"INSERT INTO order_payment_snapshots (order_id, receiving_method_id, receiving_method_name, rail_code, rail_kind, asset_id, asset_code, decimals, target_value, adapter, required_confirmations, expected_amount_units, created_at) VALUES ('order-a', 'method-a', 'Merchant A USDT', 'tron', 'chain', 'tron-usdt', 'USDT', 6, 'TA', 'tron', 20, '1000000', ?)",
+			)
+			.bind(now),
 	]);
 }

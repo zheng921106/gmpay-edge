@@ -235,6 +235,7 @@
 	"merchant_context_loading": "正在載入商戶",
 	"merchant_environment_sandbox": "沙盒",
 	"merchant_environment_production": "正式環境",
+	"checkout_merchant_payment": "向 {merchantName} 付款",
 	"merchant_members_title": "團隊成員",
 	"merchant_members_description": "可存取目前商戶的使用者",
 	"merchant_members_add": "新增成員",

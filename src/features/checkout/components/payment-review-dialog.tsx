@@ -35,7 +35,7 @@ export function PaymentReviewDialog({
 		<Dialog onOpenChange={setOpen} open={open}>
 			<DialogTrigger asChild>
 				<Button
-					className="mb-3 h-12 w-full rounded-none border-white/25 bg-transparent text-[#f5f4ed] text-base hover:bg-white/10 hover:text-[#f5f4ed]"
+					className="mb-3 h-12 w-full rounded-none border-border bg-transparent text-foreground text-base hover:bg-accent hover:text-accent-foreground"
 					disabled={disabled}
 					type="button"
 					variant="outline"
@@ -44,10 +44,10 @@ export function PaymentReviewDialog({
 					{disabled ? m.checkout_review_pending() : m.checkout_review_title()}
 				</Button>
 			</DialogTrigger>
-			<DialogContent className="border-white/15 bg-[#10130f] text-[#f5f4ed] sm:max-w-md">
+			<DialogContent className="border-border bg-popover text-popover-foreground sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>{m.checkout_review_title()}</DialogTitle>
-					<DialogDescription className="text-[#9da098]">
+					<DialogDescription className="text-muted-foreground">
 						{m.checkout_review_description()}
 					</DialogDescription>
 				</DialogHeader>
@@ -86,7 +86,7 @@ export function PaymentReviewDialog({
 							{m.checkout_review_details_label()}
 						</label>
 						<Textarea
-							className="min-h-24 rounded-none border-white/20 bg-black/20 text-[#f5f4ed] placeholder:text-[#777a72]"
+							className="min-h-24 rounded-none border-input bg-background text-foreground placeholder:text-muted-foreground"
 							disabled={submitting}
 							id="review-description"
 							maxLength={1000}
@@ -102,7 +102,7 @@ export function PaymentReviewDialog({
 						</label>
 						<Input
 							accept="image/jpeg,image/png,image/webp"
-							className="rounded-none border-white/20 bg-black/20 text-[#f5f4ed]"
+							className="rounded-none border-input bg-background text-foreground"
 							disabled={submitting}
 							id="review-evidence"
 							onChange={(event) =>
@@ -111,14 +111,14 @@ export function PaymentReviewDialog({
 							required
 							type="file"
 						/>
-						<p className="text-[#9da098] text-xs">
+						<p className="text-muted-foreground text-xs">
 							{m.checkout_review_evidence_hint()}
 						</p>
 					</div>
 					<DialogFooter>
 						<DialogClose asChild>
 							<Button
-								className="rounded-none border-white/25 bg-transparent text-[#f5f4ed] hover:bg-white/10 hover:text-[#f5f4ed]"
+								className="rounded-none border-border bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground"
 								disabled={submitting}
 								type="button"
 								variant="outline"
@@ -127,7 +127,7 @@ export function PaymentReviewDialog({
 							</Button>
 						</DialogClose>
 						<Button
-							className="rounded-none bg-[#b6ff43] text-[#10120e] hover:bg-[#d4ff8a]"
+							className="rounded-none bg-emerald-500 text-emerald-950 hover:bg-emerald-400 dark:bg-[#b6ff43] dark:text-[#10120e] dark:hover:bg-[#d4ff8a]"
 							disabled={submitting}
 							type="submit"
 						>

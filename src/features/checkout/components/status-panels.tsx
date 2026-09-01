@@ -26,13 +26,13 @@ function StatePanel({
 	return (
 		<output
 			aria-live="polite"
-			className="flex min-h-96 w-full flex-col items-center justify-center border border-white/15 bg-[#10130f] px-6 py-10 text-center text-[#f5f4ed] shadow-[8px_8px_0_0_rgba(182,255,67,0.12)]"
+			className="flex min-h-96 w-full flex-col items-center justify-center border border-border bg-card px-6 py-10 text-center text-card-foreground shadow-[8px_8px_0_0_rgba(16,185,129,0.12)] dark:shadow-[8px_8px_0_0_rgba(182,255,67,0.12)]"
 		>
-			<div className="mb-6 flex size-20 items-center justify-center border border-white/15 bg-white/5">
+			<div className="mb-6 flex size-20 items-center justify-center border border-border bg-muted/60">
 				{icon}
 			</div>
 			<p className="mb-2 font-bold text-xl">{title}</p>
-			<p className="mb-6 text-[#9da098] text-sm">{description}</p>
+			<p className="mb-6 text-muted-foreground text-sm">{description}</p>
 			{children}
 		</output>
 	);
@@ -160,7 +160,7 @@ function TerminalPanel({
 		<div className="space-y-4">
 			<StatePanel description={description} icon={icon} title={title} />
 			<Button
-				className="h-12 w-full rounded-none border-white/25 bg-transparent text-[#f5f4ed] hover:bg-white/10 hover:text-[#f5f4ed]"
+				className="h-12 w-full rounded-none border-border bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground"
 				onClick={onBack}
 				type="button"
 				variant="outline"
@@ -188,7 +188,7 @@ export function ExpiredPanel({
 				{children}
 			</StatePanel>
 			<Button
-				className="h-12 w-full rounded-none border-white/25 bg-transparent text-[#f5f4ed] hover:bg-white/10 hover:text-[#f5f4ed]"
+				className="h-12 w-full rounded-none border-border bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground"
 				onClick={onBack}
 				type="button"
 				variant="outline"
@@ -215,7 +215,7 @@ export function TimeoutPanel({
 			/>
 			<div className="flex gap-3">
 				<Button
-					className="h-12 flex-1 rounded-none border-white/25 bg-transparent text-[#f5f4ed] hover:bg-white/10 hover:text-[#f5f4ed]"
+					className="h-12 flex-1 rounded-none border-border bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground"
 					onClick={onBack}
 					type="button"
 					variant="outline"
@@ -223,7 +223,7 @@ export function TimeoutPanel({
 					{m.checkout_back()}
 				</Button>
 				<Button
-					className="h-12 flex-1 rounded-none bg-[#b6ff43] text-[#10120e] hover:bg-[#d4ff8a]"
+					className="h-12 flex-1 rounded-none bg-emerald-500 text-emerald-950 hover:bg-emerald-400 dark:bg-[#b6ff43] dark:text-[#10120e] dark:hover:bg-[#d4ff8a]"
 					onClick={onRetry}
 					type="button"
 				>
@@ -243,7 +243,7 @@ export function NotFoundPanel({ onBack }: { onBack: () => void }) {
 				title={m.checkout_not_found()}
 			/>
 			<Button
-				className="h-12 w-full rounded-none border-white/25 bg-transparent text-[#f5f4ed] hover:bg-white/10 hover:text-[#f5f4ed]"
+				className="h-12 w-full rounded-none border-border bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground"
 				onClick={onBack}
 				type="button"
 				variant="outline"

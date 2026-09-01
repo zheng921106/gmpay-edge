@@ -235,6 +235,7 @@
   "merchant_context_loading": "가맹점 불러오는 중",
   "merchant_environment_sandbox": "샌드박스",
   "merchant_environment_production": "운영 환경",
+  "checkout_merchant_payment": "{merchantName} 결제",
   "merchant_members_title": "팀 구성원",
   "merchant_members_description": "현재 가맹점에 접근할 수 있는 사용자",
   "merchant_members_add": "구성원 추가",

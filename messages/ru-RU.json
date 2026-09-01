@@ -235,6 +235,7 @@
   "merchant_context_loading": "Загрузка мерчанта",
   "merchant_environment_sandbox": "Песочница",
   "merchant_environment_production": "Production",
+  "checkout_merchant_payment": "Оплата для {merchantName}",
   "merchant_members_title": "Участники команды",
   "merchant_members_description": "Пользователи с доступом к текущему мерчанту",
   "merchant_members_add": "Добавить участника",

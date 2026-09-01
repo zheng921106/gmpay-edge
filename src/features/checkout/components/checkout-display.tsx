@@ -54,7 +54,7 @@ export function CopyIconButton({
 		<Button
 			aria-label={copied ? m.common_copy_success() : m.common_copy()}
 			className={cn(
-				"mb-0.5 shrink-0 rounded-none border border-white/15 bg-white/10 text-[#f5f4ed] hover:bg-white/20 hover:text-[#f5f4ed]",
+				"mb-0.5 shrink-0 rounded-none border border-border bg-muted/60 text-foreground hover:bg-muted hover:text-foreground",
 				className,
 			)}
 			onClick={handleClick}

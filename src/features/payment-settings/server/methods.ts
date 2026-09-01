@@ -319,7 +319,10 @@ export const createReceivingMethodFn = createServerFn({ method: "POST" })
 
 const updateReceivingMethodInput = createReceivingMethodInput
 	.pick({ name: true, minAmount: true, maxAmount: true })
-	.extend({ id: z.string().trim().min(1).max(100) });
+	.extend({
+		id: z.string().trim().min(1).max(100),
+		address: z.string().trim().min(1).max(512).optional(),
+	});
 
 export const updateReceivingMethodFn = createServerFn({ method: "POST" })
 	.validator((input: z.input<typeof updateReceivingMethodInput>) =>
@@ -327,72 +330,132 @@ export const updateReceivingMethodFn = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const context = await receivingMethodContext("update");
-		const current = await context.db
+		return updateReceivingMethod(
+			context.db,
+			data,
+			{
+				actorUserId: context.user.id,
+				requestId: context.request.headers.get("x-request-id"),
+				ipAddress: context.request.headers.get("cf-connecting-ip"),
+			},
+			context.scope,
+		);
+	});
+
+type ReceivingMethodUpdate = z.input<typeof updateReceivingMethodInput>;
+
+type ReceivingMethodAudit = {
+	actorUserId: string | null;
+	requestId: string | null;
+	ipAddress: string | null;
+};
+
+export async function updateReceivingMethod(
+	db: D1Database,
+	input: ReceivingMethodUpdate,
+	audit: ReceivingMethodAudit,
+	scope: MerchantEnvironmentContext,
+) {
+	const current = await db
+		.prepare(
+			`SELECT name, rail_code, target_type, target_value,
+			 min_amount_minor, max_amount_minor
+			 FROM receiving_methods
+			 WHERE id = ? AND merchant_id IS ? AND environment_id IS ?`,
+		)
+		.bind(input.id, scope.merchantId, scope.environmentId)
+		.first<{
+			name: string;
+			rail_code: string;
+			target_type: "address" | "account" | "provider";
+			target_value: string;
+			min_amount_minor: string | null;
+			max_amount_minor: string | null;
+		}>();
+	if (!current) throw paymentSettingsError("receiving_method_not_found");
+	const target =
+		current.target_type === "address" && input.address !== undefined
+			? receivingTarget("chain", current.rail_code, { address: input.address })
+			: {
+					type: current.target_type,
+					value: current.target_value,
+					metadata: undefined,
+				};
+	const limits = parseReceivingUsdLimits(input.minAmount, input.maxAmount);
+	const minAmountMinor = limits.min?.toString() ?? null;
+	const maxAmountMinor = limits.max?.toString() ?? null;
+	const limitsChanged =
+		current.min_amount_minor !== minAmountMinor ||
+		current.max_amount_minor !== maxAmountMinor;
+	const targetChanged = current.target_value !== target.value;
+	const now = Date.now();
+	await db.batch([
+		db
 			.prepare(
-				`SELECT name, min_amount_minor, max_amount_minor
-					 FROM receiving_methods
-					 WHERE id = ? AND merchant_id IS ? AND environment_id IS ?`,
+				`UPDATE receiving_methods SET name = ?, target_value = ?,
+				 normalized_target_value = ?, target_metadata = COALESCE(?, target_metadata),
+				 min_amount_minor = ?, max_amount_minor = ?, updated_at = ?
+				 WHERE id = ? AND merchant_id IS ? AND environment_id IS ?`,
 			)
-			.bind(data.id, context.scope.merchantId, context.scope.environmentId)
-			.first<{
-				name: string;
-				min_amount_minor: string | null;
-				max_amount_minor: string | null;
-			}>();
-		if (!current) throw paymentSettingsError("receiving_method_not_found");
-		const limits = parseReceivingUsdLimits(data.minAmount, data.maxAmount);
-		const minAmountMinor = limits.min?.toString() ?? null;
-		const maxAmountMinor = limits.max?.toString() ?? null;
-		const limitsChanged =
-			current.min_amount_minor !== minAmountMinor ||
-			current.max_amount_minor !== maxAmountMinor;
-		const now = Date.now();
-		await context.db.batch([
-			context.db
-				.prepare(
-					`UPDATE receiving_methods SET name = ?, min_amount_minor = ?,
-					 max_amount_minor = ?, updated_at = ?
-					 WHERE id = ? AND merchant_id IS ? AND environment_id IS ?`,
-				)
-				.bind(
-					data.name,
+			.bind(
+				input.name,
+				target.value,
+				target.value,
+				target.metadata ? JSON.stringify(target.metadata) : null,
+				minAmountMinor,
+				maxAmountMinor,
+				now,
+				input.id,
+				scope.merchantId,
+				scope.environmentId,
+			),
+		db
+			.prepare(
+				`UPDATE payment_ingresses SET reconcile_required_at = ?, updated_at = ?
+				 WHERE enabled = 1 AND merchant_id IS ? AND environment_id IS ?
+				 AND network = ? AND ? = 1`,
+			)
+			.bind(
+				now,
+				now,
+				scope.merchantId,
+				scope.environmentId,
+				current.rail_code,
+				targetChanged ? 1 : 0,
+			),
+		db
+			.prepare(
+				`INSERT INTO audit_logs
+				 (id, actor_user_id, action, target_type, target_id, request_id,
+				  ip_address, before, after, created_at)
+				 VALUES (?, ?, 'receiving_method.updated', 'receiving_method',
+				  ?, ?, ?, ?, ?, ?)`,
+			)
+			.bind(
+				crypto.randomUUID(),
+				audit.actorUserId,
+				input.id,
+				audit.requestId,
+				audit.ipAddress,
+				JSON.stringify({
+					name: current.name,
+					targetValue: current.target_value,
+					minAmountMinor: current.min_amount_minor,
+					maxAmountMinor: current.max_amount_minor,
+				}),
+				JSON.stringify({
+					name: input.name,
+					targetValue: target.value,
 					minAmountMinor,
 					maxAmountMinor,
-					now,
-					data.id,
-					context.scope.merchantId,
-					context.scope.environmentId,
-				),
-			context.db
-				.prepare(
-					`INSERT INTO audit_logs
-					 (id, actor_user_id, action, target_type, target_id, request_id,
-					  ip_address, before, after, created_at)
-					 VALUES (?, ?, 'receiving_method.updated', 'receiving_method',
-					  ?, ?, ?, ?, ?, ?)`,
-				)
-				.bind(
-					crypto.randomUUID(),
-					context.user.id,
-					data.id,
-					context.request.headers.get("x-request-id"),
-					context.request.headers.get("cf-connecting-ip"),
-					JSON.stringify({
-						name: current.name,
-						minAmountMinor: current.min_amount_minor,
-						maxAmountMinor: current.max_amount_minor,
-					}),
-					JSON.stringify({
-						name: data.name,
-						minAmountMinor,
-						maxAmountMinor,
-						limitsChanged,
-					}),
-					now,
-				),
-		]);
-		return { id: data.id, limitsChanged };
-	});
+					limitsChanged,
+					targetChanged,
+				}),
+				now,
+			),
+	]);
+	return { id: input.id, limitsChanged, targetChanged };
+}
 
 export const deleteReceivingMethodFn = createServerFn({ method: "POST" })
 	.validator((input: z.input<typeof receivingMethodIdInput>) =>
