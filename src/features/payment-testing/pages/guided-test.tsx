@@ -22,6 +22,7 @@ import { FormItem, ProForm } from "#/components/pro/form";
 import { Badge } from "#/components/ui/badge";
 import { EnvironmentBoundary } from "#/features/payment-testing/components/environment-boundary";
 import { simulatorScenarioLabel } from "#/features/payment-testing/components/labels";
+import { paymentTestOperationErrorMessage } from "#/features/payment-testing/error-message";
 import {
 	advanceSimulatorScenarioFn,
 	cancelPaymentTestRunFn,
@@ -943,6 +944,6 @@ function expectedOutcomeForScenario(
 	};
 	return outcomes[scenario];
 }
-function showPaymentTestError() {
-	toast.error(m.payment_test_operation_failed());
+function showPaymentTestError(error?: unknown) {
+	toast.error(paymentTestOperationErrorMessage(error));
 }
