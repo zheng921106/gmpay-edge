@@ -17,6 +17,10 @@ import {
 	toCreateOrderInput,
 } from "#/features/orders/server/gmpay-api";
 import type { PaymentTestStartInput } from "#/features/payment-testing/schema";
+import {
+	observePaymentTestOperation,
+	redactPaymentTestSnapshot,
+} from "#/features/payment-testing/server/observability";
 import { preflightPaymentTest } from "#/features/payment-testing/server/preflight";
 import type {
 	MerchantAccessContext,
@@ -39,13 +43,23 @@ export async function executePaymentTestRun(
 	const preflight = await preflightPaymentTest(env.DB, context, input);
 	const callback = await paymentTestCallback(context.requestOrigin, input);
 	const startedAt = Date.now();
-	const protocol = await invokePaymentProtocol(
-		env.DB,
-		context,
-		preflight,
-		input,
-		callback.url,
-		runId,
+	const protocol = await observePaymentTestOperation(
+		{
+			operation: "protocol_request",
+			protocol: input.protocol,
+			environment: context.environment,
+			mode: input.paymentMode,
+			scenario: null,
+		},
+		() =>
+			invokePaymentProtocol(
+				env.DB,
+				context,
+				preflight,
+				input,
+				callback.url,
+				runId,
+			),
 	);
 	if (!(protocol.response.ok && protocol.orderId)) {
 		await env.DB.prepare(
@@ -166,14 +180,14 @@ async function invokePaymentProtocol(
 			"content-type": request.headers.get("content-type") ?? "",
 			"x-request-id": requestId,
 		},
-		body: redactRecord(
+		body: redactPaymentTestSnapshot(
 			input.protocol === "gmpay"
 				? (parseGmpayRequestBody("application/json", requestBody) as Record<
 						string,
 						unknown
 					>)
 				: Object.fromEntries(new URLSearchParams(requestBody)),
-		),
+		) as Record<string, unknown>,
 	};
 	const createSelectedOrder = (
 		orderDb: D1Database,
@@ -219,7 +233,10 @@ async function invokePaymentProtocol(
 		method: "POST",
 		path: new URL(request.url).pathname,
 		headers: { "x-request-id": response.headers.get("x-request-id") ?? "" },
-		body: redactValue(responseBody) as Record<string, unknown> | null,
+		body: redactPaymentTestSnapshot(responseBody) as Record<
+			string,
+			unknown
+		> | null,
 		status: response.status,
 		durationMs: Math.max(0, performance.now() - started),
 	};
@@ -345,28 +362,6 @@ function orderIdFromResponse(value: unknown) {
 	return "trade_id" in data && typeof data.trade_id === "string"
 		? data.trade_id
 		: null;
-}
-
-function redactRecord(value: Record<string, unknown>) {
-	return Object.fromEntries(
-		Object.entries(value).map(([key, entry]) => [
-			key,
-			isSensitiveKey(key) ? "[REDACTED]" : redactValue(entry),
-		]),
-	);
-}
-
-function redactValue(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map(redactValue);
-	if (value && typeof value === "object")
-		return redactRecord(value as Record<string, unknown>);
-	return value;
-}
-
-function isSensitiveKey(key: string) {
-	return /^(?:signature|sign|authorization|cookie|token|secret|password)$/i.test(
-		key,
-	);
 }
 
 async function paymentTestCallback(

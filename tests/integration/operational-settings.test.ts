@@ -31,7 +31,7 @@ describe("authoritative operational settings", () => {
 					 'payments.scan_interval_ms',
 					 'payments.webhook_recovery_interval_ms',
 					 'payments.rpc_health_interval_ms', 'payments.reorg_monitor_ms',
-				 'retention.audit_ms'
+					 'retention.audit_ms', 'retention.payment_test_evidence_days'
 				)`,
 			)
 			.run();
@@ -97,6 +97,21 @@ describe("authoritative operational settings", () => {
 		await expect(loadOperationalSettings(unavailable)).rejects.toThrow(
 			"D1 unavailable",
 		);
+	});
+
+	it("bounds dedicated payment test evidence retention", async () => {
+		await putSetting("retention.payment_test_evidence_days", 30);
+		await expect(loadOperationalSettings(database)).resolves.toMatchObject({
+			paymentTestEvidenceDays: 30,
+		});
+		await putSetting("retention.payment_test_evidence_days", 1);
+		await expect(loadOperationalSettings(database)).resolves.toMatchObject({
+			paymentTestEvidenceDays: 90,
+		});
+		await putSetting("retention.payment_test_evidence_days", 366);
+		await expect(loadOperationalSettings(database)).resolves.toMatchObject({
+			paymentTestEvidenceDays: 90,
+		});
 	});
 
 	async function putSetting(key: string, value: unknown) {

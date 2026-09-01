@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { runOperationalRetentionCleanup } from "#/features/operations/server/operational-retention";
 import {
 	applyNodeMigrations,
 	NodeDurableQueue,
@@ -78,6 +79,60 @@ describe("Bun SQLite database", () => {
 		await expect(applyNodeMigrations(database, url)).rejects.toThrow(
 			"Applied migration changed",
 		);
+		database.close();
+	});
+
+	it("runs payment test evidence retention on the Bun SQLite adapter", async () => {
+		const database = openNodeDatabase(":memory:");
+		await applyNodeMigrations(
+			database,
+			new URL("../../../drizzle/", import.meta.url),
+		);
+		const now = Date.UTC(2026, 8, 1);
+		const old = now - 31 * 86_400_000;
+		await database.batch([
+			database
+				.prepare(
+					"INSERT INTO users (id, name, email, email_verified, enabled, created_at, updated_at) VALUES ('retention-user', 'Retention', 'retention@example.com', 1, 1, ?, ?)",
+				)
+				.bind(now, now),
+			database
+				.prepare(
+					`INSERT INTO api_keys
+					 (id, merchant_id, environment_id, name, pid, secret_encrypted,
+					 scopes, enabled, created_at, updated_at)
+					 VALUES ('retention-key', 'default-merchant', 'default-sandbox',
+					 'Retention', 'retention_pid', 'ciphertext', '[]', 1, ?, ?)`,
+				)
+				.bind(now, now),
+		]);
+		await database
+			.prepare(
+				`INSERT INTO payment_test_runs
+				 (id, merchant_id, environment_id, created_by_user_id, protocol,
+				 payment_mode, api_key_id, external_order_id, callback_mode,
+				 callback_destination_snapshot, status, expected_outcome,
+				 idempotency_key, completed_at, created_at, updated_at)
+				 VALUES ('retention-run', 'default-merchant', 'default-sandbox',
+				 'retention-user', 'gmpay', 'simulator', 'retention-key', 'external',
+				 'builtin', '{}', 'passed', 'paid', 'retention-idempotency', ?, ?, ?)`,
+			)
+			.bind(old, old, old)
+			.run();
+
+		const result = await runOperationalRetentionCleanup({
+			db: database as unknown as D1Database,
+			bucket: { delete: async () => undefined },
+			now,
+			retentionMs: 365 * 86_400_000,
+			testEvidenceRetentionMs: 30 * 86_400_000,
+		});
+		expect(result.testEvidenceRows).toBe(1);
+		expect(
+			await database
+				.prepare("SELECT COUNT(*) AS count FROM payment_test_runs")
+				.first<number>("count"),
+		).toBe(0);
 		database.close();
 	});
 });

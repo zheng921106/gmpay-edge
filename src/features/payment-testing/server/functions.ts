@@ -15,6 +15,7 @@ import {
 	paymentTestWebhookRetrySchema,
 } from "#/features/payment-testing/schema";
 import { confirmProductionPaymentTestRun } from "#/features/payment-testing/server/confirmation";
+import { observePaymentTestOperation } from "#/features/payment-testing/server/observability";
 import { preflightPaymentTest } from "#/features/payment-testing/server/preflight";
 import { startPaymentTestRun } from "#/features/payment-testing/server/runs";
 import { advanceSimulatorScenario } from "#/features/payment-testing/server/simulator";
@@ -184,15 +185,20 @@ export const preflightPaymentTestFn = createServerFn({ method: "POST" })
 			module: "merchant",
 			permissionMask: 2,
 		});
-		const preflight = await preflightPaymentTest(db, context, data);
-		return {
-			ready: preflight.ready,
-			environment: preflight.environment,
-			apiKey: { id: preflight.apiKey.id, pid: preflight.apiKey.pid },
-			receivingMethod: preflight.receivingMethod,
-			asset: preflight.asset,
-			rail: preflight.rail,
-		};
+		return observePaymentTestOperation(
+			paymentTestOperation("preflight", context, data),
+			async () => {
+				const preflight = await preflightPaymentTest(db, context, data);
+				return {
+					ready: preflight.ready,
+					environment: preflight.environment,
+					apiKey: { id: preflight.apiKey.id, pid: preflight.apiKey.pid },
+					receivingMethod: preflight.receivingMethod,
+					asset: preflight.asset,
+					rail: preflight.rail,
+				};
+			},
+		);
 	});
 
 export const startPaymentTestRunFn = createServerFn({ method: "POST" })
@@ -202,7 +208,10 @@ export const startPaymentTestRunFn = createServerFn({ method: "POST" })
 			module: "merchant",
 			permissionMask: 2,
 		});
-		return startPaymentTestRun(env, context, data);
+		return observePaymentTestOperation(
+			paymentTestOperation("order_create", context, data),
+			() => startPaymentTestRun(env, context, data),
+		);
 	});
 
 export const confirmProductionPaymentTestRunFn = createServerFn({
@@ -214,7 +223,16 @@ export const confirmProductionPaymentTestRunFn = createServerFn({
 			module: "merchant",
 			permissionMask: 2,
 		});
-		return confirmProductionPaymentTestRun(env, context, data);
+		return observePaymentTestOperation(
+			{
+				operation: "confirmation",
+				protocol: null,
+				environment: context.environment,
+				mode: "live",
+				scenario: null,
+			},
+			() => confirmProductionPaymentTestRun(env, context, data),
+		);
 	});
 
 export const advanceSimulatorScenarioFn = createServerFn({ method: "POST" })
@@ -224,11 +242,22 @@ export const advanceSimulatorScenarioFn = createServerFn({ method: "POST" })
 			module: "merchant",
 			permissionMask: 4,
 		});
-		if (!env.WEBHOOK_QUEUE) throw queueUnavailable();
-		return advanceSimulatorScenario(
-			{ DB: env.DB, WEBHOOK_QUEUE: env.WEBHOOK_QUEUE },
-			context,
-			data,
+		const webhookQueue = env.WEBHOOK_QUEUE;
+		if (!webhookQueue) throw queueUnavailable();
+		return observePaymentTestOperation(
+			{
+				operation: "payment_detect",
+				protocol: null,
+				environment: context.environment,
+				mode: "simulator",
+				scenario: data.scenario,
+			},
+			() =>
+				advanceSimulatorScenario(
+					{ DB: env.DB, WEBHOOK_QUEUE: webhookQueue },
+					context,
+					data,
+				),
 		);
 	});
 
@@ -252,11 +281,22 @@ export const refreshRealPaymentTestRunFn = createServerFn({ method: "POST" })
 				409,
 				"Simulator runs use scenario controls.",
 			);
-		if (!env.PAYMENT_QUEUE) throw queueUnavailable();
-		return queueAdminPaymentCheck(
-			{ DB: db, PAYMENT_QUEUE: env.PAYMENT_QUEUE },
-			run.order_id,
-			requestAuditContext(request, access.id),
+		const paymentQueue = env.PAYMENT_QUEUE;
+		if (!paymentQueue) throw queueUnavailable();
+		return observePaymentTestOperation(
+			{
+				operation: "payment_detect",
+				protocol: run.protocol,
+				environment: access.context.environment,
+				mode: run.payment_mode,
+				scenario: run.scenario,
+			},
+			() =>
+				queueAdminPaymentCheck(
+					{ DB: db, PAYMENT_QUEUE: paymentQueue },
+					run.order_id as string,
+					requestAuditContext(request, access.id),
+				),
 		);
 	});
 
@@ -267,11 +307,12 @@ export const retryPaymentTestWebhookFn = createServerFn({ method: "POST" })
 			module: "merchant",
 			permissionMask: 4,
 		});
-		if (!env.WEBHOOK_QUEUE) throw queueUnavailable();
+		const webhookQueue = env.WEBHOOK_QUEUE;
+		if (!webhookQueue) throw queueUnavailable();
 		const row = await db
 			.prepare(
 				`SELECT delivery.id, delivery.status, delivery.attempt_count,
-				 event.id AS event_id
+					 event.id AS event_id
 				 FROM payment_test_runs run
 				 JOIN webhook_deliveries delivery ON delivery.order_id = run.order_id
 				 JOIN webhook_events event ON event.id = delivery.event_id
@@ -308,7 +349,7 @@ export const retryPaymentTestWebhookFn = createServerFn({ method: "POST" })
 			attempt: 1,
 		};
 		try {
-			await env.WEBHOOK_QUEUE.send(message);
+			await webhookQueue.send(message);
 			await completeManualWebhookRetry(db, row.id, claimToken);
 			await writeRunAudit(db, request, access.id, data.runId, {
 				action: "payment_test.webhook_retried",
@@ -396,14 +437,18 @@ async function loadScopedRun(
 ) {
 	const row = await db
 		.prepare(
-			`SELECT id, order_id, payment_mode, status FROM payment_test_runs
+			`SELECT id, order_id, protocol, payment_mode, scenario, status FROM payment_test_runs
 			 WHERE id = ? AND merchant_id = ? AND environment_id = ? LIMIT 1`,
 		)
 		.bind(runId, context.merchantId, context.environmentId)
 		.first<{
 			id: string;
 			order_id: string | null;
+			protocol: "gmpay" | "epay";
 			payment_mode: "simulator" | "testnet" | "live";
+			scenario:
+				| import("#/features/payment-testing/server/simulator").SimulatorScenario
+				| null;
 			status: string;
 		}>();
 	if (!row)
@@ -413,6 +458,23 @@ async function loadScopedRun(
 			"Payment test run was not found.",
 		);
 	return row;
+}
+
+function paymentTestOperation(
+	operation: "preflight" | "order_create",
+	context: MerchantAccessContext,
+	input: {
+		protocol: "gmpay" | "epay";
+		paymentMode: "simulator" | "testnet" | "live";
+	},
+) {
+	return {
+		operation,
+		protocol: input.protocol,
+		environment: context.environment,
+		mode: input.paymentMode,
+		scenario: null,
+	} as const;
 }
 
 function toPaymentTestRunListItem(row: PaymentTestRunListRow) {

@@ -126,6 +126,7 @@ async function runMaintenanceInvocation(
 				env.DB,
 				now,
 				settings.retentionAuditMs,
+				settings.paymentTestEvidenceDays * 86_400_000,
 			)));
 	if (retentionClaim !== null && !retentionWork)
 		await completeDailyRetention(env.DB, retentionClaim, now);
@@ -178,12 +179,15 @@ async function runMaintenanceInvocation(
 					bucket: env.FILES,
 					now,
 					retentionMs: settings.retentionAuditMs,
+					testEvidenceRetentionMs:
+						settings.paymentTestEvidenceDays * 86_400_000,
 				});
 				await completeDailyRetention(env.DB, retentionClaim, now);
 				return {
 					affectedRows: core.affectedRows + operational.affectedRows,
 					webhookRows: operational.webhookRows,
 					auditExports: operational.auditExports,
+					testEvidenceRows: operational.testEvidenceRows,
 				};
 			}),
 		dueWork.orderExpiration &&

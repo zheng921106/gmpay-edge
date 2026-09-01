@@ -1,5 +1,6 @@
 import { toGmpayStatus } from "#/features/orders/gmpay-status";
 import { isInstanceOwnedPaymentTestCallback } from "#/features/payment-testing/server/callback";
+import { recordPaymentTestCallbackDelivery } from "#/features/payment-testing/server/observability";
 import { reconcilePaymentTestRun } from "#/features/payment-testing/server/timeline";
 import type { WebhookDeliveryResult } from "#/features/webhooks/server/delivery";
 import {
@@ -135,6 +136,12 @@ export async function processWebhookMessage(
 			now,
 		)
 		.run();
+	if (result.paymentTestRunId)
+		await recordPaymentTestCallbackDelivery(
+			db,
+			result.paymentTestRunId,
+			result,
+		);
 	if (result.success) {
 		await db
 			.prepare(

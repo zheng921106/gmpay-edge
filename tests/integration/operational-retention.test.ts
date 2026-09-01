@@ -70,6 +70,7 @@ describe("operational retention", () => {
 			affectedRows: 3,
 			webhookRows: 3,
 			auditExports: 0,
+			testEvidenceRows: 0,
 		});
 		expect(remove).not.toHaveBeenCalled();
 		await expect(ids(db, "webhook_attempts")).resolves.toEqual([

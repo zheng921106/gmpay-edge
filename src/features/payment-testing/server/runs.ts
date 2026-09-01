@@ -5,6 +5,10 @@ import {
 	parseStoredPaymentTestInput,
 } from "#/features/payment-testing/schema";
 import { issueProductionConfirmation } from "#/features/payment-testing/server/confirmation";
+import {
+	isPaymentTestSensitiveKey,
+	redactPaymentTestSnapshot,
+} from "#/features/payment-testing/server/observability";
 import { preflightPaymentTest } from "#/features/payment-testing/server/preflight";
 import { executePaymentTestRun } from "#/features/payment-testing/server/protocol-request";
 import type {
@@ -178,29 +182,15 @@ function sanitizePaymentTestInputForStorage(input: PaymentTestStartInput) {
 	if (!input.rawInput) return { ...input };
 	if (input.protocol === "epay") {
 		const parameters = new URLSearchParams(input.rawInput);
-		for (const key of [
-			"sign",
-			"signature",
-			"authorization",
-			"cookie",
-			"secret",
-			"password",
-		])
-			if (parameters.has(key)) parameters.set(key, "[REDACTED]");
+		for (const key of parameters.keys())
+			if (isPaymentTestSensitiveKey(key)) parameters.set(key, "[REDACTED]");
 		return { ...input, rawInput: parameters.toString() };
 	}
 	try {
 		const value: unknown = JSON.parse(input.rawInput);
 		if (!value || typeof value !== "object" || Array.isArray(value))
 			return { ...input, rawInput: "{}" };
-		const record = { ...value } as Record<string, unknown>;
-		for (const key of Object.keys(record))
-			if (
-				/^(?:sign|signature|authorization|cookie|token|secret|password)$/i.test(
-					key,
-				)
-			)
-				record[key] = "[REDACTED]";
+		const record = redactPaymentTestSnapshot(value) as Record<string, unknown>;
 		return { ...input, rawInput: JSON.stringify(record) };
 	} catch {
 		return { ...input, rawInput: "{}" };

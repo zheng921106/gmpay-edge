@@ -17,6 +17,7 @@ type OperationalSettings = {
 	rpcHealthIntervalMs: number;
 	reorgMonitorMs: number;
 	retentionAuditMs: number;
+	paymentTestEvidenceDays: number;
 };
 
 const operationalSettingsSchema = z.object({
@@ -33,6 +34,7 @@ const operationalSettingsSchema = z.object({
 	rpcHealthIntervalMs: z.number().int().min(60_000).max(3_600_000),
 	reorgMonitorMs: z.number().int().min(3_600_000).max(604_800_000),
 	retentionAuditMs: z.number().int().min(2_592_000_000).max(315_360_000_000),
+	paymentTestEvidenceDays: z.number().int().min(7).max(365),
 });
 const defaults: OperationalSettings = {
 	immediateReleaseMode: false,
@@ -48,6 +50,7 @@ const defaults: OperationalSettings = {
 	rpcHealthIntervalMs: 15 * 60_000,
 	reorgMonitorMs: 86_400_000,
 	retentionAuditMs: 31_536_000_000,
+	paymentTestEvidenceDays: 90,
 };
 
 const keys = {
@@ -64,6 +67,7 @@ const keys = {
 	"payments.rpc_health_interval_ms": "rpcHealthIntervalMs",
 	"payments.reorg_monitor_ms": "reorgMonitorMs",
 	"retention.audit_ms": "retentionAuditMs",
+	"retention.payment_test_evidence_days": "paymentTestEvidenceDays",
 } as const;
 
 export async function loadOperationalSettings(db: D1Database) {

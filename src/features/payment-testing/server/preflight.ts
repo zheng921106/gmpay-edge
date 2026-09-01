@@ -14,6 +14,7 @@ import { DomainError } from "#/lib/domain-error";
 import {
 	assertSafeResolvedWebhookUrl,
 	resolveWebhookHostname,
+	type WebhookHostnameResolver,
 } from "#/lib/webhook-url";
 
 type PreflightRow = {
@@ -142,9 +143,9 @@ export async function preflightPaymentTest(
 			readiness.reasons[0]?.message ?? "Receiving method is not ready.",
 		);
 	if (
-		input.callback.mode === "custom" &&
-		!(await assertSafeResolvedWebhookUrl(
-			input.callback.url,
+		!(await isPaymentTestCallbackDestinationSafe(
+			input.callback,
+			context.requestOrigin,
 			resolveWebhookHostname,
 		))
 	)
@@ -172,4 +173,19 @@ export async function preflightPaymentTest(
 		},
 		rail: { code: row.rail_code, networkClass: row.network_class },
 	};
+}
+
+export async function isPaymentTestCallbackDestinationSafe(
+	callback: PaymentTestStartInput["callback"],
+	requestOrigin: string,
+	resolveHostname: WebhookHostnameResolver,
+) {
+	if (callback.mode === "builtin") {
+		try {
+			return new URL(requestOrigin).origin === requestOrigin;
+		} catch {
+			return false;
+		}
+	}
+	return assertSafeResolvedWebhookUrl(callback.url, resolveHostname);
 }
