@@ -432,6 +432,40 @@ describe("TRON adapters", () => {
 		) as { num: number };
 		expect(blockRequest.num).toBe(100);
 	});
+	it("bounds targeted native receipt scans to matching recent transfers", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse(nowBlock(100)))
+			.mockResolvedValueOnce(
+				jsonResponse({
+					data: [
+						nativeTrx("unrelated", 99, 1_000_000),
+						nativeTrx("receipt", 98, 2_932_800),
+					],
+					meta: { fingerprint: "older history" },
+				}),
+			)
+			.mockResolvedValueOnce(jsonResponse(block(98, "block-98")));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const transactions = await new TronAdapter({
+			apiUrl: "https://api.trongrid.io",
+		}).findTransactions({
+			address: zeroAddress,
+			assetCode: "TRX",
+			expectedAmountUnits: 2_932_800n,
+		});
+
+		expect(transactions.map((transaction) => transaction.hash)).toEqual([
+			"receipt",
+		]);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(String(fetchMock.mock.calls[1]?.[0])).not.toContain("fingerprint=");
+		const blockRequest = JSON.parse(
+			String((fetchMock.mock.calls[2]?.[1] as RequestInit).body),
+		) as { num: number };
+		expect(blockRequest.num).toBe(98);
+	});
 	it("shares one deadline between head and transaction requests", async () => {
 		let now = 0;
 		vi.spyOn(Date, "now").mockImplementation(() => now);
@@ -509,6 +543,29 @@ function trc20(hash: string, block: number, value: string) {
 		value,
 		type: "Transfer",
 		token_info: { symbol: "USDT" },
+	};
+}
+
+function nativeTrx(hash: string, blockNumber: number, amount: number) {
+	return {
+		txID: hash,
+		blockNumber,
+		block_timestamp: 1_700_000_000_000,
+		ret: [{ contractRet: "SUCCESS" }],
+		raw_data: {
+			contract: [
+				{
+					type: "TransferContract",
+					parameter: {
+						value: {
+							amount,
+							owner_address: `41${"00".repeat(20)}`,
+							to_address: `41${"00".repeat(20)}`,
+						},
+					},
+				},
+			],
+		},
 	};
 }
 

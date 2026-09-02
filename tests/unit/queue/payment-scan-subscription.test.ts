@@ -48,6 +48,7 @@ describe("payment scan WSS consumption", () => {
 					orderId: "order",
 					receivingMethodId: "method",
 					address: transaction.to,
+					expectedAmountUnits: 2n,
 				},
 				"USDT",
 				adapter as never,
@@ -92,6 +93,24 @@ describe("payment scan WSS consumption", () => {
 			subscribeTransactions: vi
 				.fn()
 				.mockRejectedValue(new TypeError("socket unavailable")),
+			getTransaction: vi.fn(),
+		};
+
+		await expect(
+			scanTransactions(
+				emptyPaymentsDb(),
+				message(transaction.to),
+				"USDT",
+				adapter as never,
+			),
+		).resolves.toEqual([transaction]);
+	});
+
+	it("uses the order's exact atomic amount for the authoritative poll", async () => {
+		const transaction = payment();
+		const adapter = {
+			findTransactions: async (input: { expectedAmountUnits?: bigint }) =>
+				input.expectedAmountUnits === 2n ? [transaction] : [],
 			getTransaction: vi.fn(),
 		};
 
@@ -165,6 +184,7 @@ function message(address: string) {
 		orderId: "order",
 		receivingMethodId: "method",
 		address,
+		expectedAmountUnits: 2n,
 	};
 }
 

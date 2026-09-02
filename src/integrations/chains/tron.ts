@@ -237,6 +237,7 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 	async findTransactions(input: {
 		address: string;
 		assetCode: string;
+		expectedAmountUnits?: bigint;
 		sinceBlock?: bigint;
 	}): Promise<NormalizedTransaction[]> {
 		if (!this.validateAddress(input.address))
@@ -254,17 +255,29 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 		input: {
 			address: string;
 			assetCode: string;
+			expectedAmountUnits?: bigint;
 			sinceBlock?: bigint;
 		},
 		counters: ProviderOperationCounters,
 	): Promise<NormalizedTransaction[]> {
 		const deadlineAt = operationDeadline(this.config.timeoutMs);
 		const current = await this.currentBlock(deadlineAt, counters);
+		const boundedReceiptScan =
+			input.expectedAmountUnits !== undefined && !this.config.apiKey;
+		const scanLimit = boundedReceiptScan
+			? Math.min(50, this.config.maxScanTransactions)
+			: 200;
 		const path =
 			input.assetCode.toUpperCase() === "TRX"
-				? `/v1/accounts/${input.address}/transactions?only_to=true&limit=200&order_by=block_timestamp,desc`
-				: `/v1/accounts/${input.address}/transactions/trc20?only_to=true&limit=200&order_by=block_timestamp,desc`;
-		const rows = await this.accountTransactions(path, deadlineAt, counters);
+				? `/v1/accounts/${input.address}/transactions?only_to=true&limit=${scanLimit}&order_by=block_timestamp,desc`
+				: `/v1/accounts/${input.address}/transactions/trc20?only_to=true&limit=${scanLimit}&order_by=block_timestamp,desc`;
+		const rows = await this.accountTransactions(
+			path,
+			deadlineAt,
+			counters,
+			boundedReceiptScan ? 1 : this.config.maxPages,
+			boundedReceiptScan,
+		);
 		const blockHashes = new Map<number, Promise<string>>();
 		const blockHash = (blockNumber: number) => {
 			let pending = blockHashes.get(blockNumber);
@@ -279,11 +292,17 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 				? await mapConcurrently(
 						rows
 							.map((row) => trxAccountTransactionSchema.parse(row))
-							.filter(
-								(row) =>
-									input.sinceBlock == null ||
-									BigInt(row.blockNumber) >= input.sinceBlock,
-							),
+							.filter((row) => {
+								const transfer = nativeTransferContract(row, input.address);
+								return (
+									transfer !== undefined &&
+									(input.expectedAmountUnits === undefined ||
+										BigInt(transfer.parameter.value.amount) ===
+											input.expectedAmountUnits) &&
+									(input.sinceBlock == null ||
+										BigInt(row.blockNumber) >= input.sinceBlock)
+								);
+							}),
 						this.config.maxConcurrentRequests,
 						async (row) => {
 							return this.normalizeTrx(
@@ -292,6 +311,7 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 								row.block_timestamp,
 								current,
 								await blockHash(row.blockNumber),
+								{ address: input.address },
 							);
 						},
 					)
@@ -303,6 +323,8 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 									row.to === input.address &&
 									row.token_info.symbol.toUpperCase() ===
 										input.assetCode.toUpperCase() &&
+									(input.expectedAmountUnits === undefined ||
+										BigInt(row.value) === input.expectedAmountUnits) &&
 									(input.sinceBlock == null ||
 										BigInt(row.block_number) >= input.sinceBlock),
 							),
@@ -327,11 +349,13 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 		path: string,
 		deadlineAt: number,
 		counters: ProviderOperationCounters,
+		maxPages = this.config.maxPages,
+		allowTruncation = false,
 	) {
 		const rows: unknown[] = [];
 		const seen = new Set<string>();
 		let fingerprint: string | undefined;
-		for (let page = 0; page < this.config.maxPages; page += 1) {
+		for (let page = 0; page < maxPages; page += 1) {
 			counters.page();
 			const separator = path.includes("?") ? "&" : "?";
 			const envelope = envelopeSchema.parse(
@@ -351,6 +375,12 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 			rows.push(...envelope.data);
 			const next = envelope.meta?.fingerprint;
 			if (!next) return rows;
+			if (page + 1 >= maxPages) {
+				if (allowTruncation) return rows;
+				throw new Error(
+					"TRON transaction pagination exceeded the configured limit",
+				);
+			}
 			if (rows.length >= this.config.maxScanTransactions)
 				throw new Error(
 					"TRON transaction scan exceeded the configured row limit",
@@ -510,13 +540,7 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 		blockHash: string,
 		lookup?: TransactionLookup,
 	): NormalizedTransaction {
-		const transfer = row.raw_data.contract.find(
-			(contract) =>
-				contract.type === "TransferContract" &&
-				(lookup?.address == null ||
-					tronHexToBase58(contract.parameter.value.to_address) ===
-						lookup.address),
-		);
+		const transfer = nativeTransferContract(row, lookup?.address);
 		if (!transfer) throw new Error("Unsupported TRON transaction contract");
 		return {
 			network: this.network,
@@ -597,6 +621,19 @@ class TronHttpError extends Error {
 function confirmations(current: number, block: number) {
 	return Math.max(0, current - block + 1);
 }
+
+function nativeTransferContract(
+	row: z.infer<typeof trxTransactionSchema>,
+	address?: string,
+) {
+	return row.raw_data.contract.find(
+		(contract) =>
+			contract.type === "TransferContract" &&
+			(address == null ||
+				tronHexToBase58(contract.parameter.value.to_address) === address),
+	);
+}
+
 function matchesTokenEvent(candidate: unknown, lookup?: TransactionLookup) {
 	if (!lookup?.address && lookup?.eventIndex == null) return true;
 	const parsed = z

@@ -28,7 +28,7 @@ export async function handlePaymentScan(
 	adapterCache?: Map<string, ReceivingAdaptersPromise>,
 ): Promise<void> {
 	const payment = await env.DB.prepare(
-		`SELECT ops.asset_code, ops.target_value, o.provider_order_id,
+		`SELECT ops.asset_code, ops.expected_amount_units, ops.target_value, o.provider_order_id,
 		 o.payment_scan_cursor, o.merchant_id, o.environment_id
 		 FROM order_payment_snapshots ops
 		 JOIN orders o ON o.id = ops.order_id
@@ -37,6 +37,7 @@ export async function handlePaymentScan(
 		.bind(message.body.orderId, message.body.receivingMethodId)
 		.first<{
 			asset_code: string;
+			expected_amount_units: string;
 			target_value: string;
 			provider_order_id: string | null;
 			payment_scan_cursor: string | null;
@@ -51,6 +52,7 @@ export async function handlePaymentScan(
 	const scan: AuthoritativePaymentScan = {
 		...message.body,
 		address: payment.target_value,
+		expectedAmountUnits: BigInt(payment.expected_amount_units),
 		...(payment.provider_order_id
 			? { providerOrderId: payment.provider_order_id }
 			: {}),
@@ -228,6 +230,7 @@ export async function scanTransactions(
 			: await adapter.findTransactions({
 					address: message.address,
 					assetCode,
+					expectedAmountUnits: message.expectedAmountUnits,
 					...(message.sinceBlock
 						? { sinceBlock: BigInt(message.sinceBlock) }
 						: {}),
@@ -246,6 +249,7 @@ export async function scanTransactions(
 
 type AuthoritativePaymentScan = PaymentScanMessage & {
 	address: string;
+	expectedAmountUnits: bigint;
 	providerOrderId?: string;
 	sinceBlock?: string;
 };

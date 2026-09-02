@@ -74,6 +74,7 @@ export interface PaymentAdapter<TConfig> {
 	findTransactions(input: {
 		address: string;
 		assetCode: string;
+		expectedAmountUnits?: bigint;
 		sinceBlock?: bigint;
 	}): Promise<NormalizedTransaction[]>;
 	/**
