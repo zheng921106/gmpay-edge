@@ -1,8 +1,6 @@
 export function applySecurityHeaders(request: Request, response: Response) {
 	const headers = new Headers(response.headers);
-	const routePath = new URL(request.url).pathname;
 	const scriptSources = ["'self'", "'unsafe-inline'"];
-	if (routePath === "/docs") scriptSources.push("https://cdn.jsdmirror.com");
 	headers.set("x-content-type-options", "nosniff");
 	headers.set("x-frame-options", "DENY");
 	headers.set("referrer-policy", "strict-origin-when-cross-origin");

@@ -240,6 +240,53 @@ describe("TRON adapters", () => {
 			confirmations: 2,
 		});
 	});
+	it("normalizes native TRX from node transaction details without index fields", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockResolvedValueOnce(
+					jsonResponse({ id: "node-trx-hash", blockNumber: 24 }),
+				)
+				.mockResolvedValueOnce(jsonResponse(nowBlock(25)))
+				.mockResolvedValueOnce(jsonResponse(block(24, "block-24")))
+				.mockResolvedValueOnce(
+					jsonResponse({
+						txID: "node-trx-hash",
+						ret: [{ contractRet: "SUCCESS" }],
+						raw_data: {
+							timestamp: 1_700_000_000_000,
+							contract: [
+								{
+									type: "TransferContract",
+									parameter: {
+										value: {
+											amount: 2_932_700,
+											owner_address:
+												"410000000000000000000000000000000000000000",
+											to_address: "410000000000000000000000000000000000000000",
+										},
+									},
+								},
+							],
+						},
+					}),
+				),
+		);
+		await expect(
+			new TronAdapter({ apiUrl: "https://api.trongrid.io" }).getTransaction(
+				"node-trx-hash",
+				{ address: zeroAddress, assetCode: "TRX" },
+			),
+		).resolves.toMatchObject({
+			hash: "node-trx-hash",
+			to: zeroAddress,
+			amountUnits: 2_932_700n,
+			blockNumber: 24n,
+			blockHash: "block-24",
+			timestamp: new Date(1_700_000_000_000),
+		});
+	});
 	it("rejects unsafe numeric native amounts before BigInt conversion", async () => {
 		vi.stubGlobal(
 			"fetch",

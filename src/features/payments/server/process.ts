@@ -83,7 +83,12 @@ export async function recordPaymentTransaction(
 			"Transaction does not match the payment target",
 		);
 	}
-	if (order.status === "expired" || order.status === "cancelled") {
+	const transactionOccurredAfterExpiry =
+		transaction.timestamp.getTime() > order.expires_at;
+	if (
+		order.status === "cancelled" ||
+		(order.status === "expired" && transactionOccurredAfterExpiry)
+	) {
 		const policy = (await loadOperationalSettings(env.DB)).latePaymentPolicy;
 		if (policy !== "accept") {
 			return recordLatePayment(

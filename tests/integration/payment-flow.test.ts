@@ -446,6 +446,7 @@ describe("D1 payment processing flow", () => {
 					hash: "tx-late",
 					to: "TLate11111111111111111111111111111",
 					confirmations: 2,
+					timestamp: new Date(now),
 				}),
 			),
 		).resolves.toEqual({ duplicate: false, status: "expired" });
@@ -492,6 +493,7 @@ describe("D1 payment processing flow", () => {
 					hash: "tx-late",
 					to: "TLate11111111111111111111111111111",
 					confirmations: 2,
+					timestamp: new Date(now),
 				}),
 			),
 		).resolves.toEqual({ duplicate: true, status: "expired" });
@@ -526,6 +528,47 @@ describe("D1 payment processing flow", () => {
 			payment: { receivedAmountUnits: "10000000" },
 			transaction: { id: "tron:tx-late:0", hash: "tx-late" },
 		});
+	});
+
+	it("accepts an on-time transaction discovered after the order was expired", async () => {
+		const now = Date.now();
+		const expiresAt = now - 60_000;
+		await insertOrderWithSnapshot(db, {
+			id: "order-on-time-after-expiry",
+			externalOrderId: "merchant-order-on-time-after-expiry",
+			status: "expired",
+			target: "TOnTime1111111111111111111111111111",
+			expiresAt,
+			version: 1,
+			now,
+		});
+		await expect(
+			recordPaymentTransaction(
+				env,
+				"order-on-time-after-expiry",
+				transaction({
+					hash: "tx-on-time-after-expiry",
+					to: "TOnTime1111111111111111111111111111",
+					timestamp: new Date(expiresAt - 1),
+					confirmations: 2,
+				}),
+			),
+		).resolves.toEqual({ duplicate: false, status: "paid" });
+		const order = await db
+			.prepare(
+				"SELECT status, received_amount_units FROM orders WHERE id = 'order-on-time-after-expiry'",
+			)
+			.first<{ status: string; received_amount_units: string }>();
+		expect(order).toEqual({
+			status: "paid",
+			received_amount_units: "10000000",
+		});
+		const lateEvent = await db
+			.prepare(
+				"SELECT COUNT(*) AS count FROM webhook_events WHERE order_id = 'order-on-time-after-expiry' AND type = 'payment.late_detected'",
+			)
+			.first<{ count: number }>();
+		expect(lateEvent?.count).toBe(0);
 	});
 
 	it("rolls back every side effect when concurrent payment updates lose the version race", async () => {
@@ -607,6 +650,7 @@ describe("D1 payment processing flow", () => {
 				hash: "tx-reject",
 				to: "TReject1111111111111111111111111111",
 				confirmations: 2,
+				timestamp: new Date(now),
 			}),
 		);
 		const payment = await db
@@ -683,6 +727,7 @@ describe("D1 payment processing flow", () => {
 				hash: "tx-decision",
 				to: "TDecision11111111111111111111111111",
 				confirmations: 2,
+				timestamp: new Date(now),
 			}),
 		);
 		const payment = await db

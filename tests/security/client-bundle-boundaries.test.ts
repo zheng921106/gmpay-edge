@@ -83,19 +83,12 @@ describe("client bundle boundaries", () => {
 		expect(dashboard).not.toMatch(/import\s+\{\s*OrderTrendChart\s*\}\s+from/);
 	});
 
-	it("keeps optional Scalar localhost tooling disabled on the public reference", () => {
+	it("keeps removed Scalar tooling out of the public reference", () => {
 		const reference = read("src/features/docs/api-reference-client.tsx");
-		expect(reference).toContain(
-			"https://cdn.jsdmirror.com/npm/@scalar/api-reference@1.62.5/dist/browser/standalone.js",
-		);
-		expect(reference).toContain("sha384-");
-		expect(reference).toMatch(/agent:\s*\{\s*disabled:\s*true\s*\}/);
-		expect(reference).toMatch(/showDeveloperTools:\s*"never"/);
-		expect(reference).toMatch(/hideClientButton:\s*true/);
-		expect(reference).toMatch(/hideTestRequestButton:\s*true/);
-		expect(reference).toMatch(/telemetry:\s*false/);
+		expect(reference).not.toContain("@scalar/api-reference");
+		expect(reference).not.toContain("cdn.jsdmirror.com");
+		expect(reference).not.toContain("Scalar.createApiReference");
 		expect(reference).not.toContain("MutationObserver");
-		expect(reference).not.toContain("key={resolvedTheme}");
 	});
 
 	it("registers the GSAP browser plugin only when a DOM exists", () => {

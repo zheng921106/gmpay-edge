@@ -51,10 +51,9 @@ const atomicAmountSchema = z.union([
 ]);
 const trxTransactionSchema = z.object({
 	txID: z.string(),
-	blockNumber: z.number(),
-	block_timestamp: z.number(),
 	ret: z.array(z.object({ contractRet: z.string() })).default([]),
 	raw_data: z.object({
+		timestamp: z.number().optional(),
 		contract: z.array(
 			z.object({
 				type: z.string(),
@@ -68,6 +67,10 @@ const trxTransactionSchema = z.object({
 			}),
 		),
 	}),
+});
+const trxAccountTransactionSchema = trxTransactionSchema.extend({
+	blockNumber: z.number(),
+	block_timestamp: z.number(),
 });
 const nowBlockSchema = z.object({
 	blockID: z.string(),
@@ -218,7 +221,15 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 				counters,
 			),
 		);
-		const normalized = this.normalizeTrx(raw, current, blockHash, lookup);
+		const timestamp = z.number().parse(raw.raw_data.timestamp);
+		const normalized = this.normalizeTrx(
+			raw,
+			parsedInfo.blockNumber,
+			timestamp,
+			current,
+			blockHash,
+			lookup,
+		);
 		return lookup?.assetCode && lookup.assetCode.toUpperCase() !== "TRX"
 			? null
 			: normalized;
@@ -267,7 +278,7 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 			input.assetCode.toUpperCase() === "TRX"
 				? await mapConcurrently(
 						rows
-							.map((row) => trxTransactionSchema.parse(row))
+							.map((row) => trxAccountTransactionSchema.parse(row))
 							.filter(
 								(row) =>
 									input.sinceBlock == null ||
@@ -277,6 +288,8 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 						async (row) => {
 							return this.normalizeTrx(
 								row,
+								row.blockNumber,
+								row.block_timestamp,
 								current,
 								await blockHash(row.blockNumber),
 							);
@@ -491,6 +504,8 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 	}
 	private normalizeTrx(
 		row: z.infer<typeof trxTransactionSchema>,
+		blockNumber: number,
+		timestamp: number,
 		current: { number: number },
 		blockHash: string,
 		lookup?: TransactionLookup,
@@ -511,10 +526,10 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 			to: tronHexToBase58(transfer.parameter.value.to_address),
 			assetCode: "TRX",
 			amountUnits: BigInt(transfer.parameter.value.amount),
-			blockNumber: BigInt(row.blockNumber),
+			blockNumber: BigInt(blockNumber),
 			blockHash,
-			confirmations: confirmations(current.number, row.blockNumber),
-			timestamp: new Date(row.block_timestamp),
+			confirmations: confirmations(current.number, blockNumber),
+			timestamp: new Date(timestamp),
 			success: row.ret.every((result) => result.contractRet === "SUCCESS"),
 			canonical: true,
 		};

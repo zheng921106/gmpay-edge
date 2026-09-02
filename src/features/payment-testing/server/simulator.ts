@@ -26,6 +26,7 @@ type SimulatorRunRow = {
 	scenario_step: number;
 	started_at: number | null;
 	created_at: number;
+	expires_at: number;
 	environment_code: "sandbox" | "production";
 	external_order_id: string;
 	order_status: OrderStatus;
@@ -133,6 +134,7 @@ async function loadSimulatorRun(
 		.prepare(
 			`SELECT run.order_id, run.status AS run_status, run.payment_mode,
 			 run.scenario, run.scenario_step, run.started_at, run.created_at,
+			 order_record.expires_at,
 			 environment.code AS environment_code,
 			 order_record.external_order_id, order_record.status AS order_status,
 			 order_record.amount_minor, order_record.currency,
@@ -253,7 +255,11 @@ async function scenarioTransaction(
 		amountUnits,
 		blockNumber: BigInt(input.step),
 		confirmations,
-		timestamp: new Date((row.started_at ?? row.created_at) + input.step),
+		timestamp: new Date(
+			input.scenario === "late_payment"
+				? row.expires_at + input.step
+				: (row.started_at ?? row.created_at) + input.step,
+		),
 		success: input.scenario !== "failed_transaction",
 		canonical,
 	});

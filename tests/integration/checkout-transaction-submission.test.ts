@@ -137,6 +137,37 @@ describe("checkout transaction submission", () => {
 		});
 	});
 
+	it("accepts an on-time transaction submitted after the order was marked expired", async () => {
+		await resetOrder(db);
+		const expiresAt = Date.now() - 60_000;
+		await db
+			.prepare(
+				"UPDATE orders SET status = 'expired', expires_at = ?, version = 1 WHERE id = ?",
+			)
+			.bind(expiresAt, orderId)
+			.run();
+		const adapter = fakeAdapter(
+			transaction({
+				hash: "checkout-on-time-after-expiry",
+				timestamp: new Date(expiresAt - 1),
+			}),
+		);
+		await expect(
+			submitCheckoutTransaction(
+				env,
+				{
+					orderId,
+					transactionHash: "checkout-on-time-after-expiry",
+				},
+				async () => [{ adapter }],
+			),
+		).resolves.toEqual({
+			status: "accepted",
+			orderStatus: "paid",
+			transactionId: "tron:checkout-on-time-after-expiry:0",
+		});
+	});
+
 	it("stops a rejected transaction submission at the D1 rate limiter", async () => {
 		const input = {
 			orderId: "26071306234512349997",

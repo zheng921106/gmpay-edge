@@ -64,15 +64,16 @@ describe("application security headers", () => {
 		);
 	});
 
-	it("allows the pinned Scalar CDN host only on API reference pages", () => {
+	it("does not allow removed Scalar CDN hosts on documentation pages", () => {
 		for (const path of ["/docs"]) {
 			const response = applySecurityHeaders(
 				new Request(`https://pay.example${path}`),
 				new Response("ok"),
 			);
-			expect(response.headers.get("content-security-policy"), path).toContain(
-				"script-src 'self' 'unsafe-inline' https://cdn.jsdmirror.com",
-			);
+			expect(
+				response.headers.get("content-security-policy"),
+				path,
+			).not.toContain("cdn.jsdmirror.com");
 		}
 	});
 

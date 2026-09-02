@@ -66,7 +66,9 @@ export async function submitCheckoutTransaction(
 		}>();
 	if (!order) return { status: "unavailable" };
 	if (
-		!["pending", "confirming", "partially_paid"].includes(order.status) &&
+		!["pending", "confirming", "partially_paid", "expired"].includes(
+			order.status,
+		) &&
 		!(allowLate && ["expired", "cancelled"].includes(order.status))
 	) {
 		return { status: "unavailable" };

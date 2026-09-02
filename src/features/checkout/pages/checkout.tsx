@@ -26,6 +26,7 @@ import {
 	TimeoutPanel,
 } from "#/features/checkout/components/status-panels";
 import { StepProgress } from "#/features/checkout/components/step-progress";
+import { TransactionHashDialog } from "#/features/checkout/components/transaction-hash-dialog";
 import {
 	getCheckoutOrderFn,
 	listCheckoutPaymentOptionsFn,
@@ -122,6 +123,30 @@ export function CheckoutPage({
 			transactionHash={txHash}
 		/>
 	) : null;
+	async function submitTxHash() {
+		if (!txHash.trim()) {
+			toast.error(m.checkout_tx_hash_required());
+			return false;
+		}
+		setSubmittingTxHash(true);
+		try {
+			const result = await submitCheckoutTransactionFn({
+				data: { orderId, transactionHash: txHash },
+			});
+			if (result.status !== "accepted") {
+				toast.error(transactionSubmissionMessage(result.status));
+				return false;
+			}
+			toast.success(m.checkout_tx_hash_submitted());
+			await pollAfterCurrent();
+			return true;
+		} catch {
+			toast.error(m.common_request_failed());
+			return false;
+		} finally {
+			setSubmittingTxHash(false);
+		}
+	}
 
 	useEffect(() => {
 		document.title = brand.title;
@@ -169,7 +194,15 @@ export function CheckoutPage({
 	} else if (statusDetail === "expired" || remaining === 0) {
 		content = (
 			<ExpiredPanel onBack={() => navigate({ to: "/" })}>
-				{reviewAction}
+				<div className="w-full space-y-3">
+					<TransactionHashDialog
+						onSubmit={submitTxHash}
+						onValueChange={setTxHash}
+						submitting={submittingTxHash}
+						value={txHash}
+					/>
+					{reviewAction}
+				</div>
 			</ExpiredPanel>
 		);
 	} else if (statusDetail === "partially_paid") {
@@ -235,30 +268,7 @@ export function CheckoutPage({
 				<PaymentDetailsPanel
 					onCopyAddress={() => copyText(order.receive_address ?? "")}
 					onChangePaymentOption={() => setOptionDialogOpen(true)}
-					onSubmitTxHash={async () => {
-						if (!txHash.trim()) {
-							toast.error(m.checkout_tx_hash_required());
-							return false;
-						}
-						setSubmittingTxHash(true);
-						try {
-							const result = await submitCheckoutTransactionFn({
-								data: { orderId, transactionHash: txHash },
-							});
-							if (result.status !== "accepted") {
-								toast.error(transactionSubmissionMessage(result.status));
-								return false;
-							}
-							toast.success(m.checkout_tx_hash_submitted());
-							await pollAfterCurrent();
-							return true;
-						} catch {
-							toast.error(m.common_request_failed());
-							return false;
-						} finally {
-							setSubmittingTxHash(false);
-						}
-					}}
+					onSubmitTxHash={submitTxHash}
 					onTxHashChange={setTxHash}
 					order={order}
 					orderId={orderId}
