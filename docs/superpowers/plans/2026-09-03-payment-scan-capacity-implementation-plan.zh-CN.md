@@ -160,7 +160,7 @@ bun run predeploy
 
 预期：全部命令退出码为 `0`；查询计划测试确认扫描列表没有临时 B-tree，失败审计查询使用有界部分索引。
 
-- [ ] **步骤 5：发布并验证生产环境**
+- [x] **步骤 5：发布并验证生产环境**
 
 ```bash
 git add drizzle src tests docs

@@ -160,7 +160,7 @@ bun run predeploy
 
 Expected: all commands exit `0`; query-plan tests show no temporary B-tree for the scan list and the failure-audit lookup uses its bounded partial index.
 
-- [ ] **Step 5: Release and verify production**
+- [x] **Step 5: Release and verify production**
 
 ```bash
 git add drizzle src tests docs
