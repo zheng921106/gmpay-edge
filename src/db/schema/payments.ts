@@ -330,6 +330,9 @@ export const orders = sqliteTable(
 		lastPaymentScanAt: integer("last_payment_scan_at", {
 			mode: "timestamp_ms",
 		}),
+		paymentScanLeaseUntil: integer("payment_scan_lease_until", {
+			mode: "timestamp_ms",
+		}),
 		paymentScanCursor: text("payment_scan_cursor"),
 		version: integer("version").notNull().default(0),
 		...timestamps,

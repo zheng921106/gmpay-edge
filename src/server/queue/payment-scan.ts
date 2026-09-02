@@ -21,7 +21,32 @@ import {
 } from "#/integrations/provider-observability";
 import type { RuntimeConfig } from "#/server/runtime-config";
 
+const paymentScanLeaseMs = 60_000;
+const paymentScanAuditWindowMs = 5 * 60_000;
+
 export async function handlePaymentScan(
+	message: Message<PaymentScanMessage>,
+	env: Env,
+	runtime?: RuntimeConfig,
+	adapterCache?: Map<string, ReceivingAdaptersPromise>,
+): Promise<void> {
+	const leaseUntilMs = await claimPaymentScanLease(
+		env.DB,
+		message.body.orderId,
+		Date.now(),
+	);
+	if (leaseUntilMs === null) {
+		message.ack();
+		return;
+	}
+	try {
+		await handleClaimedPaymentScan(message, env, runtime, adapterCache);
+	} finally {
+		await releasePaymentScanLease(env.DB, message.body.orderId, leaseUntilMs);
+	}
+}
+
+async function handleClaimedPaymentScan(
 	message: Message<PaymentScanMessage>,
 	env: Env,
 	runtime?: RuntimeConfig,
@@ -100,12 +125,12 @@ export async function handlePaymentScan(
 		}
 	} catch {
 		await recordPaymentScanIssue(env.DB, message.body, "configuration");
-		message.retry();
+		retryPaymentScan(message);
 		return;
 	}
 	if (!candidates.length) {
 		await recordPaymentScanIssue(env.DB, message.body, "configuration");
-		message.retry();
+		retryPaymentScan(message);
 		return;
 	}
 	let failoverCount = 0;
@@ -178,7 +203,46 @@ export async function handlePaymentScan(
 		return;
 	}
 	await recordPaymentScanIssue(env.DB, message.body, "connections_unavailable");
-	message.retry();
+	retryPaymentScan(message);
+}
+
+export async function claimPaymentScanLease(
+	db: D1Database,
+	orderId: string,
+	nowMs: number,
+) {
+	const leaseUntilMs = nowMs + paymentScanLeaseMs;
+	const claim = await db
+		.prepare(
+			`UPDATE orders SET payment_scan_lease_until = ?
+			 WHERE id = ? AND (
+			  payment_scan_lease_until IS NULL OR payment_scan_lease_until <= ?
+			 )`,
+		)
+		.bind(leaseUntilMs, orderId, nowMs)
+		.run();
+	return claim.meta.changes === 1 ? leaseUntilMs : null;
+}
+
+export async function releasePaymentScanLease(
+	db: D1Database,
+	orderId: string,
+	leaseUntilMs: number,
+) {
+	await db
+		.prepare(
+			"UPDATE orders SET payment_scan_lease_until = NULL WHERE id = ? AND payment_scan_lease_until = ?",
+		)
+		.bind(orderId, leaseUntilMs)
+		.run();
+}
+
+export function retryPaymentScan(message: Message<PaymentScanMessage>) {
+	const delaySeconds = Math.min(
+		300,
+		15 * 2 ** Math.min(4, Math.max(0, message.attempts - 1)),
+	);
+	message.retry({ delaySeconds });
 }
 
 type ReceivingAdaptersPromise = ReturnType<
@@ -454,20 +518,29 @@ async function recordPaymentScanIssue(
 	message: PaymentScanMessage,
 	kind: string,
 ) {
+	const after = JSON.stringify({
+		receivingMethodId: message.receivingMethodId,
+		kind,
+	});
+	const now = Date.now();
 	await db
 		.prepare(
-			`INSERT INTO audit_logs
-			 (id, action, target_type, target_id, after, created_at)
-			 VALUES (?, 'payment.scan_failed', 'order', ?, ?, ?)`,
+			`INSERT INTO audit_logs (id, action, target_type, target_id, after, created_at)
+			 SELECT ?, 'payment.scan_failed', 'order', ?, ?, ?
+			 WHERE NOT EXISTS (
+			  SELECT 1 FROM audit_logs INDEXED BY audit_logs_payment_scan_failure_idx
+			  WHERE action = 'payment.scan_failed' AND target_type = 'order'
+			  AND target_id = ? AND after = ? AND created_at >= ? LIMIT 1
+			 )`,
 		)
 		.bind(
 			crypto.randomUUID(),
 			message.orderId,
-			JSON.stringify({
-				receivingMethodId: message.receivingMethodId,
-				kind,
-			}),
-			Date.now(),
+			after,
+			now,
+			message.orderId,
+			after,
+			now - paymentScanAuditWindowMs,
 		)
 		.run();
 }

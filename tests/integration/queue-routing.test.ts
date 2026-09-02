@@ -170,7 +170,7 @@ describe("Cloudflare Queue envelope rejection", () => {
 		).toBe(true);
 	});
 
-	it("merges duplicate payment scans for the same order and receiving method", async () => {
+	it("merges duplicate scans and avoids snapshot reads for missing orders", async () => {
 		let paymentQueries = 0;
 		const countedDatabase = {
 			prepare(query: string) {
@@ -201,7 +201,7 @@ describe("Cloudflare Queue envelope rejection", () => {
 			{ DB: countedDatabase } as Env,
 		);
 
-		expect(paymentQueries).toBe(1);
+		expect(paymentQueries).toBe(0);
 		expect(
 			messages.every((message) => message.ack.mock.calls.length === 1),
 		).toBe(true);
