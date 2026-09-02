@@ -357,6 +357,47 @@ describe("TRON adapters", () => {
 		expect(second?.blockHash).toBe("canonical-90");
 		expect(second?.confirmations).toBe(12);
 	});
+	it("refreshes stored transactions with only the chain head and canonical block", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse(nowBlock(110)))
+			.mockResolvedValueOnce(jsonResponse(block(90, "canonical-90")));
+		vi.stubGlobal("fetch", fetchMock);
+		const stored = {
+			network: "tron" as const,
+			hash: "confirmed-hash",
+			eventIndex: 0,
+			from: zeroAddress,
+			to: address,
+			assetCode: "TRX",
+			amountUnits: 2_000_000n,
+			blockNumber: 90n,
+			blockHash: "canonical-90",
+			confirmations: 18,
+			timestamp: new Date(1_700_000_000_000),
+			success: true,
+		};
+
+		await expect(
+			new TronAdapter({ apiUrl: "https://api.trongrid.io" }).refreshTransaction(
+				stored,
+			),
+		).resolves.toMatchObject({
+			hash: "confirmed-hash",
+			blockHash: "canonical-90",
+			confirmations: 21,
+			canonical: true,
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(
+			fetchMock.mock.calls.map(([request]) => String(request)),
+		).not.toEqual(
+			expect.arrayContaining([
+				expect.stringContaining("gettransactioninfobyid"),
+				expect.stringContaining("gettransactionbyid"),
+			]),
+		);
+	});
 	it("bounds block lookups without changing transaction order", async () => {
 		let active = 0;
 		let maximum = 0;

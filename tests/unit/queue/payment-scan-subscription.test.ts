@@ -49,6 +49,7 @@ describe("payment scan WSS consumption", () => {
 					receivingMethodId: "method",
 					address: transaction.to,
 					expectedAmountUnits: 2n,
+					skipHistoryScan: false,
 				},
 				"USDT",
 				adapter as never,
@@ -124,6 +125,29 @@ describe("payment scan WSS consumption", () => {
 		).resolves.toEqual([transaction]);
 	});
 
+	it("refreshes a fully received payment without scanning address history again", async () => {
+		const stored = payment();
+		const refreshed = { ...stored, confirmations: 2 };
+		const adapter = {
+			findTransactions: async () => {
+				throw new Error("address history should not be scanned");
+			},
+			getTransaction: async () => {
+				throw new Error("full transaction lookup should not be used");
+			},
+			refreshTransaction: async () => refreshed,
+		};
+
+		await expect(
+			scanTransactions(
+				storedPaymentDb(stored),
+				{ ...message(stored.to), skipHistoryScan: true },
+				"USDT",
+				adapter as never,
+			),
+		).resolves.toEqual([refreshed]);
+	});
+
 	it("records a failed supplemental WSS connection without failing HTTP polling", async () => {
 		const transaction = payment();
 		const healthWrites: unknown[][] = [];
@@ -185,6 +209,7 @@ function message(address: string) {
 		receivingMethodId: "method",
 		address,
 		expectedAmountUnits: 2n,
+		skipHistoryScan: false,
 	};
 }
 
@@ -193,6 +218,33 @@ function emptyPaymentsDb() {
 		prepare: vi.fn(() => ({
 			bind: vi.fn(() => ({
 				all: vi.fn().mockResolvedValue({ results: [] }),
+			})),
+		})),
+	} as unknown as D1Database;
+}
+
+function storedPaymentDb(transaction: ReturnType<typeof payment>) {
+	return {
+		prepare: vi.fn(() => ({
+			bind: vi.fn(() => ({
+				all: vi.fn().mockResolvedValue({
+					results: [
+						{
+							network: transaction.network,
+							tx_hash: transaction.hash,
+							event_index: transaction.eventIndex,
+							from_address: transaction.from,
+							to_address: transaction.to,
+							asset_code: transaction.assetCode,
+							amount_units: transaction.amountUnits.toString(),
+							block_number: transaction.blockNumber.toString(),
+							block_hash: transaction.blockHash,
+							confirmations: transaction.confirmations,
+							status: "confirming",
+							observed_at: transaction.timestamp.getTime(),
+						},
+					],
+				}),
 			})),
 		})),
 	} as unknown as D1Database;

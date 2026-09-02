@@ -126,6 +126,43 @@ export class TronAdapter implements PaymentAdapter<TronConfig> {
 			(counters) => this.getTransactionObserved(hash, lookup, counters),
 		);
 	}
+	async refreshTransaction(
+		transaction: NormalizedTransaction,
+	): Promise<NormalizedTransaction | null> {
+		return observeProviderOperation(
+			{
+				adapter: "tron",
+				operation: "refresh_transaction",
+				classifyError: (error) => this.classifyError(error),
+			},
+			(counters) => this.refreshTransactionObserved(transaction, counters),
+		);
+	}
+	private async refreshTransactionObserved(
+		transaction: NormalizedTransaction,
+		counters: ProviderOperationCounters,
+	): Promise<NormalizedTransaction> {
+		const blockNumber = Number(transaction.blockNumber);
+		if (!Number.isSafeInteger(blockNumber))
+			throw new Error("TRON transaction block number exceeds safe range");
+		const deadlineAt = operationDeadline(this.config.timeoutMs);
+		const [current, blockHash] = await Promise.all([
+			this.currentBlock(deadlineAt, counters),
+			this.blockHash(blockNumber, deadlineAt, counters),
+		]);
+		if (blockHash !== transaction.blockHash)
+			return {
+				...transaction,
+				blockHash,
+				confirmations: 0,
+				canonical: false,
+			};
+		return {
+			...transaction,
+			confirmations: confirmations(current.number, blockNumber),
+			canonical: true,
+		};
+	}
 	private async getTransactionObserved(
 		hash: string,
 		lookup: TransactionLookup | undefined,

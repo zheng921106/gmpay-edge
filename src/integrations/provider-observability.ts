@@ -20,6 +20,7 @@ const providerOperationIds = [
 	"get_transaction",
 	"health_check",
 	"payment_scan",
+	"refresh_transaction",
 	"subscribe_transactions",
 	"sync_crypto_rates",
 	"sync_fiat_rates",

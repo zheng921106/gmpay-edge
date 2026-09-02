@@ -71,6 +71,13 @@ export interface PaymentAdapter<TConfig> {
 		hash: string,
 		lookup?: TransactionLookup,
 	): Promise<NormalizedTransaction | null>;
+	/**
+	 * Refreshes a previously validated transaction without rediscovering its
+	 * transfer details. Adapters should preserve canonical-chain validation.
+	 */
+	refreshTransaction?(
+		transaction: NormalizedTransaction,
+	): Promise<NormalizedTransaction | null>;
 	findTransactions(input: {
 		address: string;
 		assetCode: string;

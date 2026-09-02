@@ -29,7 +29,8 @@ export async function handlePaymentScan(
 ): Promise<void> {
 	const payment = await env.DB.prepare(
 		`SELECT ops.asset_code, ops.expected_amount_units, ops.target_value, o.provider_order_id,
-		 o.payment_scan_cursor, o.merchant_id, o.environment_id
+		 o.payment_scan_cursor, o.merchant_id, o.environment_id, o.status,
+		 o.received_amount_units
 		 FROM order_payment_snapshots ops
 		 JOIN orders o ON o.id = ops.order_id
 		 WHERE ops.order_id = ? AND ops.receiving_method_id = ? LIMIT 1`,
@@ -43,6 +44,14 @@ export async function handlePaymentScan(
 			payment_scan_cursor: string | null;
 			merchant_id: string | null;
 			environment_id: string | null;
+			status:
+				| "pending"
+				| "confirming"
+				| "partially_paid"
+				| "paid"
+				| "overpaid"
+				| "expired";
+			received_amount_units: string;
 		}>();
 	if (!payment) {
 		message.ack();
@@ -53,6 +62,10 @@ export async function handlePaymentScan(
 		...message.body,
 		address: payment.target_value,
 		expectedAmountUnits: BigInt(payment.expected_amount_units),
+		skipHistoryScan:
+			["confirming", "paid", "overpaid"].includes(payment.status) &&
+			BigInt(payment.received_amount_units) >=
+				BigInt(payment.expected_amount_units),
 		...(payment.provider_order_id
 			? { providerOrderId: payment.provider_order_id }
 			: {}),
@@ -217,29 +230,32 @@ export async function scanTransactions(
 			});
 	}
 	try {
-		const discovered = message.providerOrderId
-			? [
-					await adapter.getTransaction(message.providerOrderId, {
-						address: message.address,
-						assetCode,
-					}),
-				].filter(
-					(transaction): transaction is NonNullable<typeof transaction> =>
-						transaction !== null,
-				)
-			: await adapter.findTransactions({
-					address: message.address,
-					assetCode,
-					expectedAmountUnits: message.expectedAmountUnits,
-					...(message.sinceBlock
-						? { sinceBlock: BigInt(message.sinceBlock) }
-						: {}),
-				});
 		const pending = await refreshPendingPaymentTransactions(
 			db,
 			message.orderId,
 			adapter,
 		);
+		const discovered =
+			message.skipHistoryScan && pending.length
+				? []
+				: message.providerOrderId
+					? [
+							await adapter.getTransaction(message.providerOrderId, {
+								address: message.address,
+								assetCode,
+							}),
+						].filter(
+							(transaction): transaction is NonNullable<typeof transaction> =>
+								transaction !== null,
+						)
+					: await adapter.findTransactions({
+							address: message.address,
+							assetCode,
+							expectedAmountUnits: message.expectedAmountUnits,
+							...(message.sinceBlock
+								? { sinceBlock: BigInt(message.sinceBlock) }
+								: {}),
+						});
 		return mergeScannedTransactions(discovered, pushed, pending);
 	} finally {
 		subscriptionController.abort();
@@ -250,6 +266,7 @@ export async function scanTransactions(
 type AuthoritativePaymentScan = PaymentScanMessage & {
 	address: string;
 	expectedAmountUnits: bigint;
+	skipHistoryScan: boolean;
 	providerOrderId?: string;
 	sinceBlock?: string;
 };
@@ -331,11 +348,13 @@ async function findCurrentTransactionEvent(
 	adapter: PaymentAdapter<unknown>,
 	stored: NormalizedTransaction,
 ) {
-	const direct = await adapter.getTransaction(stored.hash, {
-		address: stored.to,
-		assetCode: stored.assetCode,
-		eventIndex: stored.eventIndex,
-	});
+	const direct = adapter.refreshTransaction
+		? await adapter.refreshTransaction(stored)
+		: await adapter.getTransaction(stored.hash, {
+				address: stored.to,
+				assetCode: stored.assetCode,
+				eventIndex: stored.eventIndex,
+			});
 	return sameTransactionEvent(direct, stored) ? direct : undefined;
 }
 
