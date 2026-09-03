@@ -6,6 +6,9 @@ import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
 const sourceFiles = collectSourceFiles(resolve(root, "src"));
+const runtimeImportsByFile = new Map(
+	sourceFiles.map((file) => [file, runtimeImports(readFileSync(file, "utf8"))]),
+);
 const resolveModule = createRequire(import.meta.url).resolve;
 const workerSourceFiles = sourceFiles.filter((file) => {
 	const path = projectPath(file);
@@ -171,9 +174,7 @@ describe("Worker top-level initialization", () => {
 
 function runtimeImportOwners(specifier: string) {
 	return sourceFiles
-		.filter((file) =>
-			runtimeImports(readFileSync(file, "utf8")).includes(specifier),
-		)
+		.filter((file) => runtimeImportsByFile.get(file)?.includes(specifier))
 		.map(projectPath)
 		.sort();
 }

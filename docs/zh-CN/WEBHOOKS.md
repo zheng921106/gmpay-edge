@@ -1,44 +1,77 @@
-# Webhook
+# 商户支付回调
 
 简体中文 · [English](../en-US/WEBHOOKS.md)
 
-GMPay Edge 将系统入站端点与订单级出站通知明确分开。
+本文说明商城接收订单状态通知的合同。商户回调与供应商、Telegram 等系统入站端点不同：
+商户回调由订单创建时的 `notify_url` 唯一决定，并且只投递该订单所属 API 凭证的事件。
 
-## 入站端点
+## 地址与安全边界
 
-入站端点是安装时初始化的“仅路径”目录，用于供应商回调和 Telegram。数据库不保存部署域名；后台详情页使用当前 Origin 生成示例 URL，并展示已脱敏的接收记录、签名结果、处理状态、耗时和安全错误码。
+- `notify_url` 必须为公网 HTTPS 地址，在创建订单后不可修改。
+- 每个订单只保留一个回调目标；不存在全局商户回调，也不会广播到其他订单地址。
+- Secret 只保留在商城后端。不要在前端、URL、日志、客服工单或数据库明文字段中保存它。
+- 回调接收端应限制为 HTTPS、限制请求体大小、记录 `request_id`/事件 ID，并拒绝不合法签名。
 
-部署主机统一在“安全设置 → Allowed Hosts”配置，由全局中间件同时约束普通请求和回调。
+沙盒和生产回调使用完全相同的路径和格式，但必须使用订单创建凭证所属环境的 Secret 验签。
 
-## 订单通知地址
+## GMPay JSON 回调
 
-商户创建订单时可以传入 `notify_url`。系统只接受公共 HTTPS URL，并把它与创建订单的 API 凭证身份一起不可变地保存到订单。系统没有全局回调目标，也不会把某订单事件广播到其他订单地址。私网、回环、链路本地、云元数据、带凭证或依赖不安全跳转的目标都会被拒绝。
+GMPay 向 `notify_url` 发起 JSON `POST`，并携带：
 
-## 签名校验
+```text
+content-type: application/json
+x-gmpay-event-id: <stable event id>
+x-gmpay-delivery-id: <delivery id>
+x-gmpay-attempt: <attempt number>
+```
 
-GMPay JSON 回调包含 `signature`，算法为：排除签名字段和空值，将回调字段按 ASCII 名称升序拼接，并以 API Secret 为 Key 计算小写 HMAC-SHA256。EPay 回调使用带 `sign` 与 `sign_type=MD5` 的 GET Query。轮换 Secret 不改变 PID 和订单引用；后续投递及手动重发都会使用新 Secret。
+正文包含以下字段：
 
-请使用常量时间比较签名，并按交易或订单身份进行幂等去重。[商户 API 文档](MERCHANT_API.md#gmpay-通知)提供可运行的 Bun 验签示例；生产接收端应先持久化事件身份，再返回纯文本 `ok`。
+| 字段 | 说明 |
+| --- | --- |
+| `pid` | 创建订单的 API 凭证 PID。 |
+| `trade_id`、`order_id` | 网关订单号与商城订单号。 |
+| `amount`、`actual_amount` | 订单金额和实际支付金额，均为十进制字符串。 |
+| `receive_address`、`token` | 收款目标和资产。 |
+| `block_transaction_id` | 区块或提供商交易标识。 |
+| `status` | `1` 等待、`2` 完成、`3` 已关闭。 |
+| `signature` | 小写 HMAC-SHA256。 |
 
-## 投递语义
+签名规则：排除 `signature` 和空值，按 ASCII 排序，以 `&` 拼接 `key=value`，使用 API Secret
+作为 HMAC Key 计算小写 HMAC-SHA256。签名比较必须使用常量时间比较。
 
-- 只有 HTTP `200` 且响应正文为纯文本 `ok` 才视为成功。
-- 投递状态和每次尝试都保存在 D1。
-- Queue 消息只携带标识符，不携带 Secret。
-- 失败使用有界指数退避，并遵守后台配置的最大尝试次数。
-- Outbox 恢复会幂等重入队遗漏的首次投递与到期重试。
-- 手动重试复用相同事件载荷并新增一次尝试。
-- 管理员可重发订单当前状态；系统新增一条手动事件和投递记录，不覆盖历史成功记录。
-- 响应摘要和审计数据有大小上限并进行敏感字段脱敏；非 JSON 响应正文不会原样保存。
+## EPay GET 回调
 
-“出站通知”表格提供投递详情弹窗，集中展示事件载荷和按最新优先排列的完整尝试记录。每次尝试会保存实际使用的请求方法、目标、请求头、请求体或查询参数，但签名值统一保存为 `[REDACTED]`，解密凭证绝不持久化。缺失或非法快照会显示为不可用，不根据当前订单状态重建。
+EPay 向 `notify_url` 发起带 Query 参数的 `GET`。字段为 `pid`、`trade_no`、`out_trade_no`、
+`type`、`name`、`money`、`trade_status`、可选 `param`、`sign` 和 `sign_type=MD5`。
 
-支付入账、订单状态转换、Webhook 事件和投递 Outbox 必须在同一事务中提交。重复链上或供应商事件不能生成重复业务事件或回调。
+排除 `sign` 和 `sign_type` 以及空值，按 ASCII 排序拼接后追加 API Secret，计算小写 MD5。
+`TRADE_SUCCESS` 表示支付完成；`WAIT_BUYER_PAY` 仍在等待；`TRADE_CLOSED` 与
+`TRADE_REFUNDED` 均不可发货。
 
-## 生产验证
+## 正确的处理顺序
 
-1. 使用能记录原始 Body 与 Header 的 HTTPS 接收端。
-2. 验证正确签名可通过，篡改回调参数会被拒绝。
-3. 分别返回 `500`、超时和重定向，验证重试与 SSRF 防护。
-4. 重放相同事件 ID，验证应用级去重。
-5. 停止并恢复 Queue 消费者，确认 Outbox 能继续投递。
+1. 解析请求并验证 GMPay HMAC 或 EPay MD5；无效签名立即失败。
+2. 根据 `trade_id`/`trade_no`、`order_id`/`out_trade_no` 查询商城内部订单，确认 PID、金额和币种。
+3. 在同一个数据库事务中保存事件唯一键、更新支付状态并仅在完成状态执行一次发货。
+4. 事务提交后返回 HTTP `200` 的纯文本 `ok`；EPay 也接受 `success`。
+
+以 `x-gmpay-event-id`、`trade_id + status` 或商城内部支付事件表建立唯一约束。不要以“回调只会来
+一次”作为假设：自动重试、网络超时、人工重发和页面刷新后的查询均会导致重复观察到同一支付状态。
+
+## 确认与重试
+
+下列任一情况都会被视为未确认：网络连接失败、超时、非 HTTP `200`、正文不是精确的 `ok`，以及
+EPay 中不是 `success` 的其他正文。网关保存投递记录并使用有界退避重试。管理员重发会保留历史，
+并创建新的投递尝试。
+
+回调必须尽快完成，慢任务应在商城内部队列异步处理，但“事件已持久化且不会重复发货”必须在回复
+`ok` 前完成。若接收端暂时不可用，可返回 `500` 让网关重试；不要返回 `ok` 后再希望网关补发。
+
+## 生产验收
+
+1. 在沙盒创建订单，核对 JSON 或 Query 中的每个签名字段。
+2. 分别测试成功回调、篡改金额、篡改签名、重复事件、超时与 `500`。
+3. 证明重复 `TRADE_SUCCESS` 或 `status=2` 不会重复扣库存、发货或记账。
+4. 以低金额生产订单验证签名、确认、商城入账和退款/关闭处理。
+5. 发生异常时，以 `request_id`、`trade_id` 和 `x-gmpay-event-id` 排查，不泄露 API Secret。

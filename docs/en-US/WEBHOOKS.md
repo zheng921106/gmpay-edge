@@ -1,73 +1,99 @@
-# Webhooks
+# Merchant Payment Notifications
 
 [简体中文](../zh-CN/WEBHOOKS.md) · English
 
-GMPay Edge distinguishes system inbound endpoints from order-level outbound
-notifications.
+This document defines the contract for a shop receiving order-status
+notifications. Merchant notifications are distinct from provider and Telegram
+inbound endpoints: the `notify_url` at order creation exclusively determines
+the destination, and only events for that order's API credential are delivered.
 
-## Inbound endpoints
+## URL and security boundary
 
-Inbound endpoints are an installed path-only catalog for provider callbacks and
-Telegram. They never persist a deployment domain. The admin endpoint detail
-page derives an example URL from the current Origin and shows redacted receipts,
-signature result, processing status, duration, and safe error code.
+- `notify_url` must be a public HTTPS URL and cannot change after order creation.
+- Each order has one notification target. There is no global merchant callback
+  and events are never broadcast to another order URL.
+- Keep the Secret on the shop backend. Do not put it in browser code, URLs, logs,
+  support tickets, or plaintext database fields.
+- The receiver should enforce HTTPS, bound request bodies, record request/event
+  IDs, and reject invalid signatures.
 
-Allowed deployment hosts are configured once under **Security → Allowed Hosts**
-and enforced by global middleware for normal requests and callbacks.
+Sandbox and production use identical notification paths and payloads, but
+verification must use the Secret from the environment that created the order.
 
-## Order notification URL
+## GMPay JSON notification
 
-The merchant may pass `notify_url` when creating an order. GMPay Edge validates
-that it is a public HTTPS URL and stores it immutably with the order and the API
-credential identity that created that order. There is no global callback-target
-configuration and an order event is never broadcast to another order's URL.
-Private, loopback, link-local, metadata, credential-bearing, and unsafe redirect
-targets are rejected.
+GMPay sends JSON `POST` to `notify_url` with:
 
-## Signature verification
+```text
+content-type: application/json
+x-gmpay-event-id: <stable event id>
+x-gmpay-delivery-id: <delivery id>
+x-gmpay-attempt: <attempt number>
+```
 
-GMPay delivery JSON includes `signature`, calculated as lowercase HMAC-SHA256
-over the sorted non-empty callback fields with the API Secret as the HMAC key. EPay delivery uses a GET
-query with `sign` and `sign_type=MD5`. Rotation updates the credential in place:
-PID and order references remain stable, while all later deliveries and explicit
-resends use the new Secret. Compare signatures in constant time and deduplicate
-by the transaction or order identity appropriate to the integration.
+The body contains:
 
-The runnable Bun verification example in
-[`MERCHANT_API.md`](./MERCHANT_API.md#gmpay-notifications) reads the raw JSON
-from stdin, performs a constant-time comparison, and prints the required plain
-text `ok` acknowledgement. Production handlers should persist the event/order
-identity before acknowledging so a repeated delivery is harmless.
+| Field | Meaning |
+| --- | --- |
+| `pid` | API credential PID that created the order. |
+| `trade_id`, `order_id` | Gateway order ID and shop order ID. |
+| `amount`, `actual_amount` | Requested and paid amounts as decimal strings. |
+| `receive_address`, `token` | Payment target and asset. |
+| `block_transaction_id` | Chain or provider transaction identifier. |
+| `status` | `1` waiting, `2` completed, `3` closed. |
+| `signature` | Lowercase HMAC-SHA256. |
 
-## Delivery semantics
+Exclude `signature` and empty values, sort field names in ASCII order, join as
+`key=value` with `&`, and calculate lowercase HMAC-SHA256 using the API Secret
+as the HMAC key. Compare signatures in constant time.
 
-- Only HTTP `200` with a plain-text `ok` acknowledgement is success.
-- Delivery state and each attempt are persisted in D1.
-- Queue messages contain identifiers, not secrets.
-- Failures use bounded exponential backoff and the configured maximum attempts.
-- Outbox recovery requeues stranded initial and retry deliveries idempotently.
-- Manual retry uses the same event payload with a new delivery attempt.
-- An administrator may explicitly resend the current order state; this creates a
-  new manual event and delivery while preserving earlier successful history.
-- JSON response capture and audit records are bounded and redact sensitive
-  fields. Opaque non-JSON response bodies are never persisted verbatim.
+## EPay GET notification
 
-The **Outbound notifications** table exposes a delivery detail dialog with the
-event payload and newest-first attempt history. New attempts retain the exact
-request method, target, headers, and body or query parameters used for delivery,
-but signing values are stored as `[REDACTED]` and decrypted credentials are never
-persisted. An unavailable or invalid snapshot is shown as unavailable rather
-than reconstructed from mutable current state.
+EPay sends `GET` query parameters to `notify_url`: `pid`, `trade_no`,
+`out_trade_no`, `type`, `name`, `money`, `trade_status`, optional `param`,
+`sign`, and `sign_type=MD5`.
 
-Payment accounting, order transition, Webhook event creation, and delivery
-outbox insertion are committed together. Duplicate chain/provider events cannot
-create duplicate business events or callback deliveries.
+Exclude `sign`, `sign_type`, and empty values, sort in ASCII order, join the
+fields, append the API Secret, and calculate lowercase MD5. `TRADE_SUCCESS`
+means payment completed; `WAIT_BUYER_PAY` is still waiting; `TRADE_CLOSED` and
+`TRADE_REFUNDED` must not fulfil an order.
 
-## Production verification
+## Required processing sequence
 
-1. Use an HTTPS receiver that records the raw body and headers.
-2. Verify a valid signature and reject modified callback parameters.
-3. Return `500`, timeout, and redirect responses to verify retries and SSRF
-   controls.
-4. Replay the same event ID and verify application-level deduplication.
-5. Recover a stopped Queue consumer and confirm outbox delivery resumes once.
+1. Parse the request and verify its GMPay HMAC or EPay MD5. Reject an invalid
+   signature immediately.
+2. Find the internal shop order by `trade_id`/`trade_no` and `order_id`/
+   `out_trade_no`, then verify PID, amount, and currency.
+3. In one database transaction, persist a unique event key, update payment state,
+   and fulfil exactly once for a completed payment.
+4. After the transaction commits, return HTTP `200` with plain-text `ok`.
+   EPay also accepts `success`.
+
+Enforce uniqueness with `x-gmpay-event-id`, `trade_id + status`, or an internal
+payment-event table. Never assume a callback arrives only once: retries, network
+timeouts, manual resends, and subsequent order queries can expose the same
+payment state again.
+
+## Acknowledgement and retries
+
+Network failures, timeouts, non-`200` responses, bodies other than exact `ok`,
+and, for EPay, bodies other than `success`, are unacknowledged. The gateway
+persists delivery history and retries with bounded backoff. Manual resend keeps
+the history and creates a new delivery attempt.
+
+The receiver should complete quickly. Move slow shop work to an internal queue,
+but persist the event and its one-time-fulfilment guarantee before replying
+`ok`. When the receiver is temporarily unavailable, return `500` so the gateway
+retries; do not reply `ok` and expect a later redelivery.
+
+## Production acceptance
+
+1. Create a sandbox order and inspect every signed JSON or query field.
+2. Test a successful callback, tampered amount, tampered signature, duplicate
+   event, timeout, and `500` response.
+3. Prove that repeated `TRADE_SUCCESS` or `status=2` cannot duplicate inventory,
+   fulfilment, or accounting work.
+4. Use a low-value production order to validate signature, confirmation, shop
+   accounting, and closure/refund handling.
+5. Investigate incidents with `request_id`, `trade_id`, and `x-gmpay-event-id`;
+   never expose the API Secret.

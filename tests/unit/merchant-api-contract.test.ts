@@ -21,6 +21,22 @@ describe("TOGETHER9 and EPay OpenAPI contract", () => {
 		expect(JSON.stringify(document)).not.toMatch(/GMPay|Gmpay/);
 	});
 
+	it("publishes the production integration origin instead of a placeholder host", async () => {
+		const document = await openApi();
+		expect(document.servers).toContainEqual({
+			description: "Production gateway",
+			url: "https://pay.gelooss.com",
+		});
+	});
+
+	it("links the live human-readable integration guide from the API contract", async () => {
+		const document = await openApi();
+		expect(document.externalDocs).toEqual({
+			description: "TOGETHER9 integration guide",
+			url: "https://pay.gelooss.com/docs",
+		});
+	});
+
 	it("declares exactly the implemented merchant entry routes", async () => {
 		const document = await openApi();
 		expect(Object.keys(document.paths).sort()).toEqual(
@@ -249,7 +265,9 @@ async function openApi() {
 		"utf8",
 	);
 	return parse(source) as {
+		externalDocs?: { description?: string; url: string };
 		info: { title: string; description: string };
+		servers: Array<{ description?: string; url: string }>;
 		paths: Record<string, Record<string, unknown>>;
 		components: {
 			schemas: Record<

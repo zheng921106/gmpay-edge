@@ -10,7 +10,11 @@ info:
     service, checkout, payment processor, and Webhook outbox. Internal
     operations use /admin and are outside this merchant API.
 servers:
-  - url: https://pay.example.com
+  - url: https://pay.gelooss.com
+    description: Production gateway
+externalDocs:
+  description: TOGETHER9 integration guide
+  url: https://pay.gelooss.com/docs
 paths:
   /payments/gmpay/v1/order/create-transaction:
     post:

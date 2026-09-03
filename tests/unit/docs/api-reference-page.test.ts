@@ -21,4 +21,20 @@ describe("merchant API documentation page", () => {
 		expect(source).not.toContain("Scalar.createApiReference");
 		expect(source).not.toContain('id="openapi-reference"');
 	});
+
+	it("maps the published bilingual guide headings to sidebar anchors", async () => {
+		const source = await readFile(
+			new URL("../../../src/features/docs/merchant-guide.tsx", import.meta.url),
+			"utf8",
+		);
+
+		expect(source).toContain('"GMPay 创建订单": "gmpay"');
+		expect(source).toContain('"Create a GMPay order": "gmpay"');
+		expect(source).toContain('"EPay 兼容接口": "epay"');
+		expect(source).toContain('"EPay compatibility API": "epay"');
+		expect(source).toContain('"错误、限流与故障恢复": "reliability"');
+		expect(source).toContain(
+			'"Errors, rate limits, and recovery": "reliability"',
+		);
+	});
 });

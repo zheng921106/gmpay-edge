@@ -359,7 +359,7 @@ bounded retries, and an audited manual retry path. Handlers should verify the
 signature, process duplicate events idempotently, and acknowledge only after
 committing their local state.
 
-Use the runtime `/docs` page or the tracked
+For the hosted gateway, start at [https://pay.gelooss.com/docs](https://pay.gelooss.com/docs). For a self-hosted deployment, use its runtime `/docs` page or the tracked
 [OpenAPI contract](public/openapi.yaml) for the authoritative fields and status
 values. Signing vectors, callback parameters, error codes, and EPay routes are
 documented in the [Merchant API guide](docs/en-US/MERCHANT_API.md).
@@ -432,7 +432,8 @@ deployer-owned infrastructure during production acceptance.
 | Authentication, secrets, uploads, and response policy | [Security notes](docs/en-US/SECURITY.md) |
 | Implemented capabilities and required evidence | [Capability matrix](docs/en-US/CAPABILITY_MATRIX.md) |
 | Machine-readable API contract | [OpenAPI YAML](public/openapi.yaml) |
-| Runtime API reference | `/docs` on a running instance |
+| Hosted integration documentation | [pay.gelooss.com/docs](https://pay.gelooss.com/docs) |
+| Runtime API reference | `/docs` on a self-hosted instance |
 
 ## Security
 

@@ -286,7 +286,7 @@ GET /payments/gmpay/v1/order/query
 
 商户在创建订单时提供 `notify_url`。回调目标必须通过实例的 SSRF 与安全策略校验。已提交的订单事件会通过异步流水线投递，使用确定性签名，并保留投递尝试、执行有界重试、提供经审计的人工重试。接收端应校验签名、幂等处理重复事件，并在本地状态提交成功后再返回确认。
 
-权威字段和状态值以运行实例的 `/docs` 页面或仓库中的 [OpenAPI 合约](public/openapi.yaml)为准。签名向量、回调参数、错误码和 EPay 路由参见[商户 API 指南](docs/zh-CN/MERCHANT_API.md)。
+托管网关请从 [pay.gelooss.com/docs](https://pay.gelooss.com/docs) 开始；自托管实例则以其 `/docs` 页面或仓库中的 [OpenAPI 合约](public/openapi.yaml)为准。签名向量、回调参数、错误码和 EPay 路由参见[商户 API 指南](docs/zh-CN/MERCHANT_API.md)。
 
 ## 技术栈
 
@@ -351,7 +351,8 @@ bun run build:bun
 | 认证、密钥、上传与响应策略 | [安全说明](docs/zh-CN/SECURITY.md) |
 | 已实现能力与必需证据 | [能力矩阵](docs/zh-CN/CAPABILITY_MATRIX.md) |
 | 机器可读 API 合约 | [OpenAPI YAML](public/openapi.yaml) |
-| 运行时 API 文档 | 运行实例的 `/docs` |
+| 托管接入文档 | [pay.gelooss.com/docs](https://pay.gelooss.com/docs) |
+| 运行时 API 文档 | 自托管实例的 `/docs` |
 
 ## 安全
 

@@ -5,12 +5,12 @@ import englishGuide from "../../../docs/en-US/MERCHANT_API.md?raw";
 import chineseGuide from "../../../docs/zh-CN/MERCHANT_API.md?raw";
 
 const headingIds: Record<string, string> = {
-	"GMPay 创建交易": "gmpay",
-	"GMPay create transaction": "gmpay",
-	"EPay 兼容": "epay",
-	"EPay compatibility": "epay",
-	错误与幂等: "reliability",
-	"Errors and idempotency": "reliability",
+	"GMPay 创建订单": "gmpay",
+	"Create a GMPay order": "gmpay",
+	"EPay 兼容接口": "epay",
+	"EPay compatibility API": "epay",
+	"错误、限流与故障恢复": "reliability",
+	"Errors, rate limits, and recovery": "reliability",
 	商城接入交付清单: "launch-checklist",
 	"Shop Integration Handoff": "launch-checklist",
 };

@@ -1,270 +1,336 @@
-# Merchant API
+# Merchant Integration API
 
 [简体中文](../zh-CN/MERCHANT_API.md) · English
 
-GMPay is the primary merchant protocol. EPay is a compatibility adapter over
-the same API credential, order service, checkout, payment processor, and
-Webhook outbox.
-
-## API credential
-
-Each credential contains a numeric `pid` and an API Secret. The Secret is shown
-only when the credential is created or rotated. Rotation updates the credential
-in place: the PID remains stable and every later delivery uses the new Secret.
-Grant `orders:create` for transaction creation and `orders:read` for queries.
-Scopes are checked independently and fail closed when stored scope data is invalid.
-
-An API credential is also bound to one merchant and one environment (`sandbox`
-or `production`). GMPay and EPay paths, signatures, and payloads remain
-unchanged: the validated `pid` and Secret determine the tenant scope, so clients
-must not add a merchant or environment parameter. A credential cannot read or
-create orders in another merchant or environment.
-
-## GMPay create transaction
-
-Send JSON or `application/x-www-form-urlencoded` to:
+This guide is for shop, SaaS, and backend integrations. The production gateway is:
 
 ```text
-POST /payments/gmpay/v1/order/create-transaction
+https://pay.gelooss.com
 ```
 
-Fields:
+Use **GMPay** for new integrations. It accepts JSON or form data and uses an
+HMAC-SHA256 signature. Existing EPay applications can use the **EPay compatibility
+API**, which preserves its fields and MD5 signature. Both protocols use the same
+orders, checkout, payment confirmation, and notification delivery. Only the API
+credential that created an order can query it.
 
-- `pid`, `order_id`, `currency`, `amount`, `notify_url`, `signature`;
-- `amount` accepts a positive JSON number or decimal string such as `12.5` or
-  `"12.50"`; strings preserve formatting exactly, while JSON numbers use their
-  parsed decimal representation for signing and minor-unit conversion.
-- optional `token` and `network`, which must be provided together;
-- optional `redirect_url` and `name`.
+## Before your first request
 
-Omitting both `token` and `network` creates a `pending` selectable order. It
-does not silently default to TRON or USDT. The checkout uses the returned
-`payment_url` to let the payer select an available receiving method.
+1. In the target merchant's **sandbox** or **production** environment, create an
+   API credential and save its `pid` and one-time API Secret.
+2. Grant `orders:create` to create payments and `orders:read` to query them.
+3. Configure a ready receiving method in that merchant environment. Production
+   orders can use only ready production receiving addresses.
+4. Prepare a public HTTPS receiver for `notify_url`. Private, loopback, cloud
+   metadata, credential-bearing, and unsafe-redirect targets are rejected.
 
-Create, query, and checkout responses expose the epusdt-compatible integer
-`status`: `1` means waiting for payment, `2` paid, `3` closed, and `4` waiting
-for payment method selection. `status_detail` retains the finer GMPay Edge
-state such as `confirming`, `partially_paid`, or `overpaid`.
+Each `pid` belongs to exactly one merchant and environment. Do not send
+`merchant_id`, `environment_id`, or an API Secret in a GMPay or EPay request.
+Sandbox and production credentials, receiving addresses, and orders are isolated
+from each other and cannot be mixed.
 
-## GMPay HMAC-SHA256 signature
+> Create orders, query orders, sign requests, and verify notifications only on
+> your shop backend. The browser should receive only `payment_url` and open the
+> checkout.
 
-1. Exclude `signature`.
-2. Exclude null and empty-string values.
-3. Convert numbers to their normal decimal representation.
-4. Sort field names in ASCII ascending order.
-5. Join `key=value` pairs with `&` without URL encoding.
-6. Calculate HMAC-SHA256 using the API Secret as the HMAC key.
-7. Encode the result as 64-character lowercase hexadecimal text.
+## Request signatures
+
+GMPay and EPay build their signing source in the same way:
+
+1. Exclude signing fields: `signature` for GMPay, `sign` and `sign_type` for EPay.
+2. Exclude `null`, `undefined`, and empty strings; retain `0`.
+3. Render numbers as ordinary decimal text and sort names in ASCII order.
+4. Join fields as `key=value` with `&`; do not URL encode the signing source again.
+
+GMPay calculates lowercase HMAC-SHA256 with the API Secret as its HMAC key. EPay
+appends the API Secret to the normalized source and calculates lowercase MD5.
+JSON encoding and URL encoding remain normal transport concerns; sign parsed
+field values, not URL-encoded text.
+
+This Node.js helper is suitable for GMPay requests and notifications:
 
 ```ts
-import { hmac } from "@noble/hashes/hmac.js";
-import { sha256 } from "@noble/hashes/sha2.js";
-import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
+import { createHmac } from "node:crypto";
 
-const parameters = {
-  pid: "100000000001",
-  order_id: "invoice-1001",
-  currency: "USD",
-  amount: "12.50",
-  notify_url: "https://merchant.example/notify",
-};
-const source = Object.entries(parameters)
-  .filter(([, value]) => value !== "")
-  .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-  .map(([key, value]) => `${key}=${value}`)
-  .join("&");
-const signature = bytesToHex(
-  hmac(
-    sha256,
-    utf8ToBytes(process.env.GMPAY_API_SECRET ?? ""),
-    utf8ToBytes(source),
-  ),
-);
+export function signGmpay(
+  values: Record<string, string | number | null | undefined>,
+  secret: string,
+) {
+  const source = Object.entries(values)
+    .filter(([key, value]) => key !== "signature" && value != null && value !== "")
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  return createHmac("sha256", secret).update(source, "utf8").digest("hex");
+}
 ```
 
-Save the snippet as `sign.ts`, set `GMPAY_API_SECRET`, and run it with
-`bun sign.ts`. A complete request can then be sent without any SDK:
+Use decimal strings such as `"12.50"` for money. Do not sign or compare results
+of floating-point accumulation.
 
-```bash
-curl --fail-with-body \
-  -H 'content-type: application/json' \
-  --data '{"pid":"100000000001","order_id":"invoice-1001","currency":"USD","amount":"12.50","notify_url":"https://merchant.example/notify","signature":"<lowercase-hmac-sha256>"}' \
-  https://pay.example.com/payments/gmpay/v1/order/create-transaction
-```
-
-The authoritative implementation and vectors are in
-`src/features/api-keys/server/gmpay-signature.ts` and
-`tests/unit/auth/gmpay-signature.test.ts`.
-
-## GMPay order query
-
-Query an order created by the same API credential using exactly one selector:
+## Create a GMPay order
 
 ```text
-GET /payments/gmpay/v1/order/query?pid=100000000001&trade_id=<trade-id>&signature=<lowercase-hmac-sha256>
+POST https://pay.gelooss.com/payments/gmpay/v1/order/create-transaction
+Content-Type: application/json
 ```
 
-Use `order_id` instead of `trade_id` when querying by the external order ID.
-The signature uses the same sorted non-empty query fields and secret as order
-creation. A credential can only query orders created with that credential.
+| Field | Required | Description |
+| --- | --- | --- |
+| `pid` | Yes | API credential PID. |
+| `order_id` | Yes | Your shop order ID, 1-128 characters and unique per credential. |
+| `currency` | Yes | Three-character fiat code, for example `USD`. |
+| `amount` | Yes | Positive decimal string with up to 8 decimal places. |
+| `notify_url` | Yes | Immutable public HTTPS payment-notification URL. |
+| `signature` | Yes | Lowercase HMAC-SHA256 over the other non-empty fields. |
+| `token`, `network` | No | Supply both, for example `USDT` / `tron`, to choose a ready receiving method. |
+| `redirect_url` | No | HTTPS page for payer completion, closure, or timeout. It does not prove payment. |
+| `name` | No | Payer-facing order name, up to 500 characters. |
+| `payment_type` | No | Compatibility field only. Use `token` and `network` to select payment. |
 
-## GMPay notifications
+Omitting both `token` and `network` creates an order that waits for the payer to
+select a receiving method, with `status: 4`. The gateway never chooses a chain or
+asset implicitly.
 
-GMPay Edge POSTs JSON to the order's immutable `notify_url`. The payload uses
-the epusdt-compatible integer status (`1` waiting, `2` paid, `3` closed) and contains `pid`, `trade_id`,
-`order_id`, order/payment amounts, target, token, transaction ID, status, and
-`signature`. Verify it with the same sorted-parameter HMAC-SHA256 algorithm and return
-plain text `ok` with HTTP 200. Any other response is retried.
-Persist the order/event identity before returning `ok`, because automatic and
-manual delivery retries can send the same logical status more than once.
+```ts
+import { signGmpay } from "./gmpay-sign.js";
 
-This Bun handler verifies a received JSON payload using the exact same
-canonicalization rule:
+const gateway = "https://pay.gelooss.com";
+const body = {
+  pid: process.env.GMPAY_PID!,
+  order_id: `shop-${crypto.randomUUID()}`,
+  currency: "USD",
+  amount: "12.50",
+  token: "USDT",
+  network: "tron",
+  name: "Shop order",
+  notify_url: "https://shop.example.com/api/payments/gmpay/notify",
+  redirect_url: "https://shop.example.com/orders/complete",
+};
+const signature = signGmpay(body, process.env.GMPAY_API_SECRET!);
+const response = await fetch(
+  `${gateway}/payments/gmpay/v1/order/create-transaction`,
+  {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...body, signature }),
+  },
+);
+const result = await response.json();
+if (!response.ok || result.status_code !== 200) {
+  throw new Error(`Gateway request failed: ${result.request_id}`);
+}
+
+// Persist these fields in your shop database, not just browser state.
+await savePayment({
+  orderId: body.order_id,
+  tradeId: result.data.trade_id,
+  paymentUrl: result.data.payment_url,
+  requestId: result.request_id,
+  expiresAt: result.data.expiration_time,
+});
+// Send result.data.payment_url to the payer's browser.
+```
+
+Successful responses have this shape:
+
+```json
+{
+  "status_code": 200,
+  "message": "success",
+  "data": {
+    "trade_id": "26071406211234567890",
+    "order_id": "shop-20260903-001",
+    "amount": "12.50",
+    "currency": "USD",
+    "actual_amount": "12.50",
+    "receive_address": "TExampleAddress",
+    "token": "USDT",
+    "network": "tron",
+    "status": 1,
+    "status_detail": "pending",
+    "expiration_time": 1788451200,
+    "payment_url": "https://pay.gelooss.com/checkout/26071406211234567890"
+  },
+  "request_id": "request-id"
+}
+```
+
+`trade_id` is the gateway order ID; `payment_url` is the only URL the browser
+should open; and `request_id` is the support correlation ID.
+
+## Query a GMPay order
+
+```text
+GET https://pay.gelooss.com/payments/gmpay/v1/order/query
+```
+
+Provide `pid`, `signature`, and exactly one of `trade_id` or `order_id`. Sign all
+non-empty query parameters, including `pid` and the chosen order selector, with
+the GMPay rule.
+
+```ts
+const query = { pid: process.env.GMPAY_PID!, order_id: shopOrderId };
+const url = new URL(`${gateway}/payments/gmpay/v1/order/query`);
+for (const [key, value] of Object.entries({
+  ...query,
+  signature: signGmpay(query, process.env.GMPAY_API_SECRET!),
+})) url.searchParams.set(key, value);
+const result = await (await fetch(url)).json();
+```
+
+A create timeout is an unknown outcome. Do not create a replacement order ID;
+query the original `order_id` first. If creation succeeded, the query returns its
+order. Repeating the create returns `10002`.
+
+## Status, redirects, and fulfilment
+
+| `status` | `status_detail` | Meaning and shop action |
+| --- | --- | --- |
+| `4` | `pending` | Payer must select a receiving method; do not fulfil. |
+| `1` | `pending`, `confirming`, `partially_paid` | Waiting for payment or chain confirmation; do not fulfil. |
+| `2` | `paid`, `overpaid` | Payment completed; fulfil idempotently after a verified notification or signed query. |
+| `3` | `expired`, `cancelled`, `failed`, `refunded` | Closed state; apply your inventory and after-sales policy. |
+
+`redirect_url` improves payer experience only. It cannot replace a verified
+gateway notification or signed order query as the fulfilment decision.
+
+## GMPay Webhook notification and verification
+
+The gateway sends a JSON `POST` to the order `notify_url`. These headers support
+diagnostics and idempotency:
+
+```text
+x-gmpay-event-id
+x-gmpay-delivery-id
+x-gmpay-attempt
+```
+
+The payload contains `pid`, `trade_id`, `order_id`, `amount`, `actual_amount`,
+`receive_address`, `token`, `block_transaction_id`, `status`, and `signature`.
+Verify every non-empty field except `signature` with the same GMPay secret and
+canonicalization. Return a non-200 response for invalid signatures, amounts, or
+orders. Return HTTP `200` with plain-text `ok` only after the shop transaction
+commits.
 
 ```ts
 import { timingSafeEqual } from "node:crypto";
-import { hmac } from "@noble/hashes/hmac.js";
-import { sha256 } from "@noble/hashes/sha2.js";
-import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
+import { signGmpay } from "./gmpay-sign.js";
 
-const payload = await Bun.stdin.json() as Record<string, string | number>;
-const received = String(payload.signature ?? "");
-const source = Object.entries(payload)
-  .filter(([key, value]) => key !== "signature" && value != null && value !== "")
-  .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-  .map(([key, value]) => `${key}=${value}`)
-  .join("&");
-const expected = bytesToHex(hmac(
-  sha256,
-  utf8ToBytes(process.env.GMPAY_API_SECRET ?? ""),
-  utf8ToBytes(source),
-));
-const valid = received.length === expected.length && timingSafeEqual(
-  Buffer.from(received),
-  Buffer.from(expected),
+export async function handleGmpayNotification(request: Request) {
+  const payload = await request.json();
+  const expected = signGmpay(payload, process.env.GMPAY_API_SECRET!);
+  const received = String(payload.signature ?? "");
+  const valid = received.length === expected.length && timingSafeEqual(
+    Buffer.from(received, "utf8"), Buffer.from(expected, "utf8"),
+  );
+  if (!valid) return new Response("invalid signature", { status: 401 });
+
+  await database.transaction(async (tx) => {
+    // Enforce uniqueness on trade_id or x-gmpay-event-id; repeats never fulfil twice.
+    if (await tx.paymentEventExists(payload.trade_id, payload.status)) return;
+    await tx.recordPaymentEvent(payload);
+    if (payload.status === 2) await tx.markOrderPaidOnce(payload.order_id);
+  });
+  return new Response("ok", { status: 200 });
+}
+```
+
+Timeouts, non-`200` responses, non-`ok` acknowledgements, and network failures
+are retried. An administrator can also resend a logical status, so notification
+handling must remain idempotent.
+
+## EPay compatibility API
+
+EPay is for existing EPay integrations. New integrations should use GMPay.
+
+| Purpose | Path and method |
+| --- | --- |
+| Create a standard compatible order | `GET` or form `POST /payments/epay/v1/order/create-transaction/submit.php` |
+| Create a Pro-compatible order | `GET` or form `POST /payments/epay/v1/order/create-transaction/mapi.php` |
+| Query an order | `GET /payments/epay/v1/order/create-transaction/api.php?act=order` |
+| Payment notification | Signed GET query sent by the gateway to `notify_url` |
+
+Create fields are `pid`, `money`, `out_trade_no`, `notify_url`, and `sign`, with
+optional `return_url`, `name`, `type`, `param`, `clientip`, `device`, and
+`sign_type=MD5`. EPay uses `money` and creates a `CNY` order. `type=USDT.tron`
+chooses an asset and network; an empty `type` or `alipay` creates a selectable
+compatibility order.
+
+```php
+<?php
+function epaySign(array $params, string $secret): string {
+    unset($params['sign'], $params['sign_type']);
+    $params = array_filter($params, fn($value) => $value !== null && $value !== '');
+    ksort($params, SORT_STRING);
+    $pairs = [];
+    foreach ($params as $key => $value) $pairs[] = $key . '=' . (string) $value;
+    return md5(implode('&', $pairs) . $secret);
+}
+
+$params = [
+    'pid' => getenv('EPAY_PID'),
+    'money' => '88.00',
+    'out_trade_no' => 'shop-20260903-001',
+    'notify_url' => 'https://shop.example.com/api/payments/epay/notify',
+    'return_url' => 'https://shop.example.com/orders/complete',
+    'type' => 'USDT.tron',
+    'sign_type' => 'MD5',
+];
+$params['sign'] = epaySign($params, getenv('EPAY_API_SECRET'));
+$response = file_get_contents(
+    'https://pay.gelooss.com/payments/epay/v1/order/create-transaction/submit.php?'
+    . http_build_query($params),
 );
-if (!valid) throw new Error("invalid signature");
-process.stdout.write("ok");
 ```
 
-## EPay compatibility
+`submit.php` returns the same `status_code` / `data.payment_url` envelope as
+GMPay. `mapi.php` returns `code`, `msg`, `trade_no`, `payurl`, `qrcode`, `img`,
+and `param`. Queries require `act=order`, `pid`, and `sign`, plus exactly one of
+`trade_no` or `out_trade_no`.
 
-EPay clients may use GET query parameters or form POST at:
+EPay notification is a GET query with `pid`, `trade_no`, `out_trade_no`, `type`,
+`name`, `money`, `trade_status`, optional `param`, `sign`, and `sign_type=MD5`.
+Sort all non-empty fields except `sign` and `sign_type`, append the Secret, and
+calculate MD5. The acknowledgement must be HTTP `200` with plain-text `ok` or
+`success`. Only `TRADE_SUCCESS` can fulfil an order; `WAIT_BUYER_PAY` is still
+waiting, while `TRADE_CLOSED` and `TRADE_REFUNDED` cannot fulfil.
 
-```text
-/payments/epay/v1/order/create-transaction/submit.php
-```
+## Errors, rate limits, and recovery
 
-The adapter accepts `pid`, `money`, `out_trade_no`, `notify_url`, optional
-`return_url`, `name`, `type`, plus `sign` and optional `sign_type=MD5`.
-Signature calculation excludes `sign` and `sign_type`. `type=asset.network`
-selects a payment method; empty or `alipay` creates a selectable order without
-defaulting to a chain. Success returns the same order envelope as GMPay. Open
-`data.payment_url` once to enter the unified GMPay Edge checkout; the create
-endpoint does not issue an intermediate redirect.
+GMPay and EPay `submit.php` responses include an HTTP status, a business code,
+and `request_id` (also in the `x-request-id` response header). Provide only the
+`request_id` when requesting support; never send the Secret or full signing
+source.
 
-The EPay adapter signs its GET callback query with the same Secret and requires
-plain text `ok`. EPay field names and `trade_status` exist only at this boundary;
-the database and application continue using the GMPay Edge order state machine.
-
-### EPay MD5 signature
-
-1. Exclude `sign` and `sign_type`.
-2. Exclude null and empty-string values.
-3. Sort field names in ASCII order and join `key=value` pairs with `&`.
-4. Append the API Secret to the canonical string.
-5. Calculate MD5 and emit 32-character lowercase hexadecimal text.
-
-```bash
-curl --fail-with-body \
-  'https://pay.example.com/payments/epay/v1/order/create-transaction/submit.php?pid=100000000001&money=12.50&out_trade_no=invoice-1001&notify_url=https%3A%2F%2Fshop.example.com%2Fpayment%2Fepay%2Fnotify&type=USDT.tron&sign=<lowercase-md5>&sign_type=MD5'
-```
-
-Mobile or legacy EPay clients can use `/payments/epay/v1/order/create-transaction/mapi.php`; its `data` uses the EPay-compatible fields `code`, `msg`, `trade_no`, `payurl`, `qrcode`, `img`, and `param`. Query an order with `/payments/epay/v1/order/create-transaction/api.php?act=order`, selecting exactly one of `trade_no` or `out_trade_no`.
-
-EPay callback fields are sent to the immutable `notify_url` saved at order creation:
-
-| Field | Meaning |
-| --- | --- |
-| `pid`, `trade_no`, `out_trade_no` | Credential, gateway order, and shop order IDs |
-| `type`, `name`, `money` | Payment method, order name, and amount |
-| `trade_status` | `WAIT_BUYER_PAY`, `TRADE_SUCCESS`, `TRADE_REFUNDED`, or `TRADE_CLOSED` |
-| `param` | Optional opaque shop context |
-| `sign`, `sign_type` | MD5 signature and the `MD5` marker |
-
-## Errors and idempotency
-
-Responses use `status_code`, `message`, `data`, and `request_id`. An external
-order ID is unique within the creating API credential. Repeating it with the
-same credential cannot create a second order, while independent credentials may
-use their own business numbering. API scope and D1 rate-limit checks are
-enforced before order creation.
-
-| `status_code` | Meaning |
-| --- | --- |
-| `10002` | External order ID already exists |
-| `10003` | Requested receiving method is unavailable |
-| `10004` | Amount is invalid |
-| `10009` | Request parameters are invalid |
-| `10016` | Requested asset/network is unavailable |
-| `401` | PID, scope, or signature verification failed |
-| `429` | API credential rate limit exceeded |
-| `500` | Unexpected gateway failure; use `request_id` when investigating |
-
-Treat a timeout as an unknown outcome: query your own persisted result before
-choosing a new external order ID. Retrying the same `order_id` is safe from
-duplicate creation because the database unique constraint is authoritative,
-but returns `10002` rather than silently creating or replacing an order.
-
-The authoritative contract is [`public/openapi.yaml`](../../public/openapi.yaml)
-and is rendered at `/docs`.
+| Code | Meaning | Shop action |
+| --- | --- | --- |
+| `10001` | Order not found | Check `pid`, environment, and selector. |
+| `10002` | Shop order ID already exists | Query that `order_id`; do not create a replacement. |
+| `10003` | Receiving method unavailable | Check the target environment's methods, address, and connection health. |
+| `10004` | Invalid amount | Send a positive decimal string with at most 8 decimal places. |
+| `10009` | Invalid parameters or oversized body | Check fields, signing source, and the 64 KiB request limit. |
+| `10016` | Asset, network, or rate unavailable | Use a ready asset/network in the target environment. |
+| `401` | PID, scope, or signature invalid | Check the credential environment and canonical source; never sign in the browser. |
+| `429` | API credential rate limited | Back off and avoid concurrent replay of the same order. |
+| `500` | Gateway internal error | Retain `request_id` and query the same order before retrying. |
 
 ## Shop Integration Handoff
 
-### Prepare the environment
+- [ ] Complete create, checkout, simulated or testnet payment, notification,
+  duplicate notification, and query in sandbox.
+- [ ] Create production-specific credentials, receiving methods, and public HTTPS
+  notification endpoint.
+- [ ] Persist `order_id`, `trade_id`, `payment_url`, amount, currency, expiry, and
+  `request_id` on the shop backend.
+- [ ] Have the browser open only `payment_url`; do not expose a Secret, signing
+  logic, or fulfilment decision to the client.
+- [ ] Verify the notification and order/amount, then deduplicate, update the
+  order, and fulfil in one transaction before replying `ok`.
+- [ ] Query the same order after a timeout; do not fulfil until callback or query
+  confirms payment.
+- [ ] Complete one deliberately low-value, manually reviewed production payment
+  before handling normal production volume.
 
-Create an API credential for the target merchant environment in `/admin` and store its `pid` and Secret. Configure and enable a receiving address, then wait for the connection to report healthy. Sandbox uses the simulator or testnet; production uses the merchant's production address. The credential binds the merchant and environment, so clients must not send `merchant_id` or `environment_id`.
-
-### Create orders server-side
-
-Create orders only from your shop backend. Generate a unique `order_id`, sign with the Secret, and persist `trade_id`, `payment_url`, amount, expiry, and `request_id`; send only `payment_url` to the browser.
-
-### PHP GMPay create and verification
-
-```php
-<?php
-function gmpaySign(array $params, string $secret): string {
-    unset($params['signature']);
-    $params = array_filter($params, static fn($v) => $v !== null && $v !== '');
-    ksort($params, SORT_STRING);
-    $pairs = [];
-    foreach ($params as $key => $value) $pairs[] = $key . '=' . (string)$value;
-    return hash_hmac('sha256', implode('&', $pairs), $secret);
-}
-$body = ['pid'=>'100000000001', 'order_id'=>'invoice-1001', 'currency'=>'USD', 'amount'=>'12.50', 'notify_url'=>'https://shop.example.com/payment/gmpay/notify'];
-$body['signature'] = gmpaySign($body, getenv('GMPAY_API_SECRET'));
-```
-
-### PHP EPay create and verification
-
-```php
-<?php
-$params = ['pid'=>'100000000001', 'money'=>'12.50', 'out_trade_no'=>'invoice-1001', 'notify_url'=>'https://shop.example.com/payment/epay/notify', 'type'=>'USDT.tron'];
-ksort($params, SORT_STRING);
-$pairs = [];
-foreach ($params as $key => $value) if ($value !== null && $value !== '') $pairs[] = $key . '=' . $value;
-$params['sign'] = md5(implode('&', $pairs) . getenv('EPAY_API_SECRET'));
-```
-
-### Callback loop
-
-GMPay callbacks are POST JSON; EPay callbacks are GET query parameters. Verify the signature, persist the order transition in a transaction, process idempotently, and return HTTP 200 plain-text `ok` (`success` is also accepted for EPay). Duplicate events must not ship twice; timeouts and non-200 responses are retried.
-
-### Go-live checks
-
-- Complete creation, checkout, simulated payment, callback, duplicate callback, and query in sandbox.
-- Confirm `orders:create` and `orders:read` scopes on the production credential.
-- Use a public HTTPS callback and constant-time signature comparison.
-- Use decimal strings for money and log `request_id`, `trade_id`, and event IDs.
-- Never log Secrets, raw signature input, or private keys.
-- Human-verify amount and network before any production payment test.
+Download the machine-readable [OpenAPI document](https://pay.gelooss.com/openapi.yaml). This guide and
+that contract define all public merchant endpoints.
